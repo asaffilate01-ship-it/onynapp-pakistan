@@ -10,18 +10,18 @@
     BlinkMacSystemFont,
     "Segoe UI",
     sans-serif;
-  color: #17211b;
-  background: #fbfaf6;
+  color: #21182d;
+  background: #fbf9fc;
   font-synthesis: none;
-  --ink: #17211b;
-  --muted: #657069;
-  --green: #116b45;
-  --green-dark: #0a4930;
-  --lime: #c8f04a;
-  --cream: #fbfaf6;
-  --line: #e2e5df;
+  --ink: #21182d;
+  --muted: #716979;
+  --green: #6d28d9;
+  --green-dark: #3b146f;
+  --lime: #f7c948;
+  --cream: #fbf9fc;
+  --line: #e9e2ed;
   --card: #ffffff;
-  --shadow: 0 16px 42px rgba(26, 52, 39, 0.08);
+  --shadow: 0 16px 42px rgba(67, 35, 92, 0.11);
 }
 
 * {
@@ -48,7 +48,7 @@ button:focus-visible,
 input:focus-visible,
 textarea:focus-visible,
 a:focus-visible {
-  outline: 3px solid rgba(17, 107, 69, 0.28);
+  outline: 3px solid rgba(109, 40, 217, 0.3);
   outline-offset: 3px;
 }
 .app-shell {
@@ -75,8 +75,8 @@ a:focus-visible {
   top: 0;
   z-index: 40;
   height: 76px;
-  border-bottom: 1px solid rgba(226, 229, 223, 0.86);
-  background: rgba(251, 250, 246, 0.9);
+  border-bottom: 1px solid rgba(233, 226, 237, 0.9);
+  background: rgba(251, 249, 252, 0.92);
   backdrop-filter: blur(18px);
 }
 .header-inner {
@@ -194,7 +194,7 @@ a:focus-visible {
   font-size: 13px;
   font-weight: 800;
   cursor: pointer;
-  box-shadow: 0 8px 18px rgba(17, 107, 69, 0.18);
+  box-shadow: 0 8px 18px rgba(109, 40, 217, 0.2);
 }
 
 .hero-section {
@@ -208,7 +208,7 @@ a:focus-visible {
   display: grid;
   grid-template-columns: 1.03fr 0.97fr;
   align-items: center;
-  background: linear-gradient(125deg, #e7f5da 0%, #f3f6df 55%, #f8e9cc 100%);
+  background: linear-gradient(125deg, #eee6ff 0%, #f8efff 55%, #fff1d8 100%);
 }
 .hero-section::before {
   content: "";
@@ -218,13 +218,54 @@ a:focus-visible {
   border-radius: 50%;
   right: -80px;
   top: -130px;
-  background: rgba(200, 240, 74, 0.42);
+  background: rgba(247, 201, 72, 0.38);
   filter: blur(2px);
 }
 .hero-content {
   position: relative;
   z-index: 2;
   max-width: 620px;
+}
+.service-switcher {
+  width: fit-content;
+  max-width: 100%;
+  margin: 18px 0 2px;
+  padding: 5px;
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  border: 1px solid rgba(109, 40, 217, 0.14);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.68);
+}
+.service-switcher button {
+  min-width: max-content;
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  column-gap: 6px;
+  padding: 9px 11px;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.service-switcher button small {
+  grid-column: 2;
+  color: #958a9e;
+  font-size: 8px;
+  font-weight: 800;
+  text-align: left;
+  text-transform: uppercase;
+}
+.service-switcher button.active {
+  background: var(--green);
+  color: white;
+  box-shadow: 0 7px 18px rgba(109, 40, 217, 0.2);
+}
+.service-switcher button.active small {
+  color: #eadcff;
 }
 .eyebrow {
   display: inline-flex;
@@ -259,6 +300,72 @@ a:focus-visible {
   color: #506057;
   font-size: 17px;
   line-height: 1.55;
+}
+.fulfilment-toggle {
+  width: fit-content;
+  margin: 0 0 12px;
+  padding: 3px;
+  display: flex;
+  border: 1px solid rgba(109, 40, 217, 0.16);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.62);
+}
+.fulfilment-toggle button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.fulfilment-toggle button.active {
+  background: white;
+  color: var(--green);
+  box-shadow: 0 5px 13px rgba(67, 35, 92, 0.1);
+}
+.service-roadmap-note {
+  max-width: 650px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid rgba(109, 40, 217, 0.16);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.78);
+}
+.service-roadmap-note > span {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: #eee4ff;
+  color: var(--green);
+}
+.service-roadmap-note div {
+  display: grid;
+  gap: 4px;
+}
+.service-roadmap-note small {
+  color: var(--muted);
+  line-height: 1.4;
+}
+.service-roadmap-note button {
+  min-width: max-content;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--green);
+  color: white;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
 }
 .search-box {
   max-width: 680px;
@@ -678,7 +785,7 @@ a:focus-visible {
 }
 .role-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 18px;
 }
 .role-card {
@@ -693,7 +800,7 @@ a:focus-visible {
   display: grid;
   place-items: center;
   border-radius: 14px;
-  background: #eaf3e2;
+  background: #eee4ff;
   color: var(--green);
 }
 .role-card h3 {
@@ -1714,6 +1821,9 @@ a:focus-visible {
   .fair-section {
     grid-template-columns: 1fr;
   }
+  .role-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
   .checkout-grid {
     grid-template-columns: 1fr 330px;
   }
@@ -1773,6 +1883,16 @@ a:focus-visible {
   }
   .hero-content > p {
     font-size: 15px;
+  }
+  .service-switcher {
+    width: 100%;
+  }
+  .service-roadmap-note {
+    grid-template-columns: auto 1fr;
+  }
+  .service-roadmap-note button {
+    grid-column: 1/-1;
+    width: 100%;
   }
   .search-box {
     min-height: 55px;

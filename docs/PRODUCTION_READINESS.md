@@ -6,19 +6,21 @@ Updated: 10 August 2026
 
 The repository began as a blank TanStack/Lovable starter. Phase 1 now provides a coherent customer marketplace and working front-end ordering prototype, but it is not yet safe to accept real orders or money.
 
-| Area                            | Current readiness | Evidence and remaining condition                                                                                                                         |
-| ------------------------------- | ----------------: | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Customer UI/UX                  |               72% | Responsive discovery, menu, basket, checkout and order-state journeys exist. Add real data, Urdu, accessibility testing and usability evidence.          |
-| Customer ordering functionality |               38% | Front-end state works; durable order creation, inventory, pricing, tax, refunds and notifications are not connected.                                     |
-| Restaurant/ePOS/KDS             |               12% | Partner entry point exists. Portal, menu import, order acceptance, KDS, printer/device adapters and settlement reports remain.                           |
-| Rider and dispatch              |                8% | Rider entry point exists. Verification, availability, dispatch, navigation, proof of delivery, safety and earnings remain.                               |
-| Sales-agent portal              |                8% | Agent proposition exists. Lead ownership, duplicate protection, onboarding evidence and commission ledger remain.                                        |
-| Admin and operations            |               10% | Operations entry point exists. RBAC screens, support, fraud, refunds, vendor/rider review and audit exports remain.                                      |
-| Security and privacy            |               28% | Baseline headers, checks and CI are present. Auth, server authorisation, RLS, secrets, rate limits, webhook verification and independent testing remain. |
-| Reliability and operations      |               12% | Production build passes. Monitoring, backups, restore drill, SLOs, incident playbooks and live integrations remain.                                      |
-| Overall launch readiness        |           **25%** | Suitable for product demonstrations and the next build phase, not public trading.                                                                        |
+| Area                            | Current readiness | Evidence and remaining condition                                                                                                                                   |
+| ------------------------------- | ----------------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Customer UI/UX                  |               76% | Responsive discovery, service/fulfilment choice, menu, basket, checkout and order-state journeys exist. Add real data, Urdu, accessibility and usability evidence. |
+| Customer ordering functionality |               38% | Front-end state works; durable order creation, inventory, pricing, tax, refunds and notifications are not connected.                                               |
+| Restaurant/ePOS/KDS             |               12% | Partner entry point exists. Portal, menu import, order acceptance, KDS, printer/device adapters and settlement reports remain.                                     |
+| Rider and dispatch              |                8% | Rider entry point exists. Verification, availability, dispatch, navigation, proof of delivery, safety and earnings remain.                                         |
+| Sales-agent portal              |                8% | Agent proposition exists. Lead ownership, duplicate protection, onboarding evidence and commission ledger remain.                                                  |
+| Admin and operations            |               10% | Operations entry point exists. RBAC screens, support, fraud, refunds, vendor/rider review and audit exports remain.                                                |
+| Security and privacy            |               28% | Baseline headers, checks and CI are present. Auth, server authorisation, RLS, secrets, rate limits, webhook verification and independent testing remain.           |
+| Reliability and operations      |               12% | Production build passes. Monitoring, backups, restore drill, SLOs, incident playbooks and live integrations remain.                                                |
+| Overall launch readiness        |           **25%** | Suitable for product demonstrations and the next build phase, not public trading.                                                                                  |
 
 Readiness percentages are delivery estimates, not certifications. “100%” requires passed acceptance evidence, not only source code.
+
+The detailed comparison with the parent repository and live product is in [ONYN_REFERENCE_AUDIT.md](./ONYN_REFERENCE_AUDIT.md). Its conclusion is to reuse the parent brand and validated workflow ideas, but not inherit its backend or deployment posture without remediation.
 
 ## What competitors establish as the baseline
 
@@ -92,7 +94,7 @@ Sources: [foodpanda Pakistan](https://www.foodpanda.pk/), [foodpanda restaurant 
 | Experience       | Primary navigation                                                                              |
 | ---------------- | ----------------------------------------------------------------------------------------------- |
 | Customer mobile  | Home, Search, Orders, Account; basket as a contextual action                                    |
-| Customer desktop | Location, Search/Discovery, Orders, Partner entry, Account, Basket                              |
+| Customer desktop | Location, Food service/fulfilment, Search/Discovery, Orders, Partner entry, Account, Basket     |
 | Restaurant       | Overview, Orders, KDS, ePOS, Menu, Inventory, Customers, Reports, Team, Settings                |
 | Rider            | Home/Go online, Offers, Active delivery, Earnings, Schedule, Support, Account                   |
 | Sales agent      | Pipeline, Add lead, Onboarding, Portfolio, Commission, Resources, Account                       |

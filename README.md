@@ -9,13 +9,15 @@ The commercial model is designed around a predictable monthly vendor subscriptio
 This repository now contains a responsive, production-buildable Phase 1 customer experience:
 
 - Pakistan-localised restaurant and home-chef discovery
+- Onyn-branded Food, Grocery, Pharmacy and Courier service switcher with non-launch services clearly gated
+- Functional delivery/collection choice with matching fee, checkout and tracking language
 - Lahore, Islamabad and Karachi delivery-area selection examples
 - Search, cuisine filters, favourites and restaurant menus
 - Functional basket quantities, voucher input and clear fee breakdown
 - Checkout, cash-on-delivery selection and order confirmation flow
 - Mobile navigation and responsive desktop/tablet/mobile layouts
 - Customer mobile OTP entry screen ready for a real authentication service
-- Restaurant, rider, sales-agent and operations entry points
+- Restaurant, rider, supplier, sales-agent and operations entry points
 - Global CSP, frame protection, MIME sniffing protection, permissions and referrer headers
 - CI build, lint, type checks and dependency audit workflow
 
@@ -38,7 +40,7 @@ npm run check
 
 ## Product and launch status
 
-See [docs/PRODUCTION_READINESS.md](docs/PRODUCTION_READINESS.md) for the verified baseline, competitor comparison, target architecture, security requirements, role model and phased go-live plan.
+See [docs/PRODUCTION_READINESS.md](docs/PRODUCTION_READINESS.md) for the verified baseline, competitor comparison, target architecture, security requirements, role model and phased go-live plan. The parent repository and live-site review is documented separately in [docs/ONYN_REFERENCE_AUDIT.md](docs/ONYN_REFERENCE_AUDIT.md).
 
 ## Lovable
 

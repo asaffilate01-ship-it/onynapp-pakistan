@@ -88,6 +88,47 @@ const categories = [
   ["🍰", "Desserts"],
 ];
 
+const serviceModes = [
+  {
+    id: "food",
+    icon: Utensils,
+    label: "Food",
+    detail: "Restaurants & home chefs",
+    title: "What are you craving today?",
+    copy: "Restaurants, home chefs and everyday favourites—delivered across your neighbourhood.",
+    phase: "Launch",
+  },
+  {
+    id: "grocery",
+    icon: ShoppingBag,
+    label: "Grocery",
+    detail: "Shops & daily essentials",
+    title: "Your essentials, without the extra trip.",
+    copy: "A low-bandwidth grocery experience with live stock and sensible substitutions.",
+    phase: "Next",
+  },
+  {
+    id: "pharmacy",
+    icon: ShieldCheck,
+    label: "Pharmacy",
+    detail: "Verified health retailers",
+    title: "Trusted pharmacy delivery, designed safely.",
+    copy: "Verified retailers, prescription controls and clear pharmacist escalation are required first.",
+    phase: "Later",
+  },
+  {
+    id: "courier",
+    icon: PackageCheck,
+    label: "Courier",
+    detail: "Local pickup & drop",
+    title: "Send a package across your city.",
+    copy: "Address validation, item rules, proof of delivery and transparent distance pricing come first.",
+    phase: "Later",
+  },
+] as const;
+
+type ServiceMode = (typeof serviceModes)[number]["id"];
+
 const restaurants: Restaurant[] = [
   {
     id: "karahi-house",
@@ -248,6 +289,12 @@ const roleCards = [
     detail: "Earn commission onboarding quality local vendors.",
     action: "Become an agent",
   },
+  {
+    icon: PackageCheck,
+    title: "Supplier partner",
+    detail: "Supply verified restaurants with stock and simpler ordering.",
+    action: "Join as a supplier",
+  },
 ];
 
 function money(value: number) {
@@ -258,6 +305,8 @@ function OnynApp() {
   const [view, setView] = useState<AppView>("home");
   const [query, setQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
+  const [serviceMode, setServiceMode] = useState<ServiceMode>("food");
+  const [fulfilment, setFulfilment] = useState<"delivery" | "collection">("delivery");
   const [selectedRestaurant, setSelectedRestaurant] = useState<Restaurant>(restaurants[0]);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
@@ -284,14 +333,14 @@ function OnynApp() {
 
   const restaurantMenu = menu.filter((item) => item.restaurantId === selectedRestaurant.id);
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const deliveryFee = cart.length ? selectedRestaurant.delivery : 0;
+  const deliveryFee = cart.length && fulfilment === "delivery" ? selectedRestaurant.delivery : 0;
   const serviceFee = cart.length ? 29 : 0;
   const total = subtotal + deliveryFee + serviceFee;
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const activeService = serviceModes.find((mode) => mode.id === serviceMode) ?? serviceModes[0];
 
   function navigate(next: AppView) {
     setView(next);
-    setOrderPlaced(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -350,7 +399,7 @@ function OnynApp() {
           <button className="location-button" type="button" onClick={() => setLocationOpen(true)}>
             <MapPin size={18} />
             <span>
-              <small>Deliver to</small>
+              <small>{fulfilment === "delivery" ? "Deliver to" : "Collect near"}</small>
               <strong>{location}</strong>
             </span>
             <ChevronDown size={16} />
@@ -388,14 +437,66 @@ function OnynApp() {
                 <span className="eyebrow">
                   <Sparkles size={15} /> Fair delivery. Better for local businesses.
                 </span>
-                <h1>
-                  What are you craving <em>today?</em>
-                </h1>
-                <p>
-                  Restaurants, home chefs and everyday essentials—delivered across your
-                  neighbourhood.
-                </p>
-                <SearchBox query={query} setQuery={setQuery} onFocus={() => setView("search")} />
+                <div className="service-switcher" aria-label="Choose an Onyn service">
+                  {serviceModes.map(({ id, icon: Icon, label, phase }) => (
+                    <button
+                      type="button"
+                      key={id}
+                      className={serviceMode === id ? "active" : ""}
+                      aria-pressed={serviceMode === id}
+                      onClick={() => setServiceMode(id)}
+                    >
+                      <Icon size={17} />
+                      <span>{label}</span>
+                      <small>{phase}</small>
+                    </button>
+                  ))}
+                </div>
+                <h1>{activeService.title}</h1>
+                <p>{activeService.copy}</p>
+                {serviceMode === "food" ? (
+                  <>
+                    <div className="fulfilment-toggle" aria-label="Order fulfilment">
+                      <button
+                        type="button"
+                        className={fulfilment === "delivery" ? "active" : ""}
+                        aria-pressed={fulfilment === "delivery"}
+                        onClick={() => setFulfilment("delivery")}
+                      >
+                        <Bike size={16} /> Delivery
+                      </button>
+                      <button
+                        type="button"
+                        className={fulfilment === "collection" ? "active" : ""}
+                        aria-pressed={fulfilment === "collection"}
+                        onClick={() => setFulfilment("collection")}
+                      >
+                        <Store size={16} /> Collection
+                      </button>
+                    </div>
+                    <SearchBox
+                      query={query}
+                      setQuery={setQuery}
+                      onFocus={() => setView("search")}
+                    />
+                  </>
+                ) : (
+                  <div className="service-roadmap-note" role="status">
+                    <span>
+                      <activeService.icon size={20} />
+                    </span>
+                    <div>
+                      <strong>{activeService.label} is deliberately outside the launch MVP.</strong>
+                      <small>
+                        The customer entry point is designed; catalog, compliance and operations
+                        must pass their launch gate before ordering is enabled.
+                      </small>
+                    </div>
+                    <button type="button" onClick={() => setServiceMode("food")}>
+                      Browse food
+                    </button>
+                  </div>
+                )}
                 <div className="trust-row">
                   <span>
                     <Check size={15} /> Clear fees
@@ -556,7 +657,9 @@ function OnynApp() {
             </div>
             <div className="results-heading">
               <strong>{filteredRestaurants.length} places</strong>
-              <span>Delivering to {location}</span>
+              <span>
+                {fulfilment === "delivery" ? "Delivering to" : "Collection near"} {location}
+              </span>
             </div>
             {filteredRestaurants.length ? (
               <RestaurantGrid
@@ -683,6 +786,7 @@ function OnynApp() {
                     cart={cart}
                     subtotal={subtotal}
                     deliveryFee={deliveryFee}
+                    fulfilment={fulfilment}
                     serviceFee={serviceFee}
                     total={total}
                     changeQuantity={changeQuantity}
@@ -708,20 +812,36 @@ function OnynApp() {
                 </div>
                 <div className="checkout-grid">
                   <div className="checkout-details">
-                    <CheckoutCard icon={MapPin} title="Delivery address" action="Change">
+                    <CheckoutCard
+                      icon={fulfilment === "delivery" ? MapPin : Store}
+                      title={fulfilment === "delivery" ? "Delivery address" : "Collection branch"}
+                      action="Change"
+                    >
                       <strong>{location}</strong>
-                      <p>House 24, Street 7 • Leave at the door</p>
+                      <p>
+                        {fulfilment === "delivery"
+                          ? "House 24, Street 7 • Leave at the door"
+                          : selectedRestaurant.name}
+                      </p>
                     </CheckoutCard>
-                    <CheckoutCard icon={Clock3} title="Delivery time" action="Schedule">
+                    <CheckoutCard
+                      icon={Clock3}
+                      title={fulfilment === "delivery" ? "Delivery time" : "Collection time"}
+                      action="Schedule"
+                    >
                       <strong>As soon as possible</strong>
                       <p>Estimated {selectedRestaurant.eta}</p>
                     </CheckoutCard>
                     <CheckoutCard icon={WalletCards} title="Payment method" action="Change">
-                      <strong>Cash on delivery</strong>
+                      <strong>
+                        {fulfilment === "delivery" ? "Cash on delivery" : "Pay on collection"}
+                      </strong>
                       <p>JazzCash, Easypaisa and cards will be enabled after gateway approval.</p>
                     </CheckoutCard>
                     <label className="notes-field">
-                      <span>Delivery note (optional)</span>
+                      <span>
+                        {fulfilment === "delivery" ? "Delivery" : "Collection"} note (optional)
+                      </span>
                       <textarea
                         maxLength={160}
                         placeholder="Gate, landmark or rider instructions"
@@ -733,6 +853,7 @@ function OnynApp() {
                       cart={cart}
                       subtotal={subtotal}
                       deliveryFee={deliveryFee}
+                      fulfilment={fulfilment}
                       serviceFee={serviceFee}
                       total={total}
                       changeQuantity={changeQuantity}
@@ -751,7 +872,7 @@ function OnynApp() {
                 <h1>Thanks—your order is confirmed.</h1>
                 <p>
                   Demo order <strong>#ON-10482</strong> is being sent to {selectedRestaurant.name}.
-                  In production this screen will use signed server events and live rider tracking.
+                  In production this screen will use signed server events and live order updates.
                 </p>
                 <div className="tracking-steps">
                   <span className="done">
@@ -761,10 +882,12 @@ function OnynApp() {
                     <Utensils /> Preparing
                   </span>
                   <span>
-                    <Bike /> On the way
+                    {fulfilment === "delivery" ? <Bike /> : <Store />}
+                    {fulfilment === "delivery" ? "On the way" : "Ready to collect"}
                   </span>
                   <span>
-                    <Home /> Delivered
+                    {fulfilment === "delivery" ? <Home /> : <Check />}
+                    {fulfilment === "delivery" ? "Delivered" : "Collected"}
                   </span>
                 </div>
                 <button
@@ -786,7 +909,7 @@ function OnynApp() {
             <div className="page-heading">
               <span className="kicker">YOUR ORDERS</span>
               <h1>Orders and live tracking</h1>
-              <p>One place for active deliveries, support and receipts.</p>
+              <p>One place for active orders, support and receipts.</p>
             </div>
             {orderPlaced ? (
               <article className="active-order">
@@ -931,6 +1054,7 @@ function OnynApp() {
             cart={cart}
             subtotal={subtotal}
             deliveryFee={deliveryFee}
+            fulfilment={fulfilment}
             serviceFee={serviceFee}
             total={total}
             changeQuantity={changeQuantity}
@@ -1109,6 +1233,7 @@ function BasketContent({
   cart,
   subtotal,
   deliveryFee,
+  fulfilment,
   serviceFee,
   total,
   changeQuantity,
@@ -1118,6 +1243,7 @@ function BasketContent({
   cart: CartLine[];
   subtotal: number;
   deliveryFee: number;
+  fulfilment: "delivery" | "collection";
   serviceFee: number;
   total: number;
   changeQuantity: (id: string, amount: number) => void;
@@ -1172,7 +1298,7 @@ function BasketContent({
           <strong>{money(subtotal)}</strong>
         </span>
         <span>
-          <small>Delivery fee</small>
+          <small>{fulfilment === "delivery" ? "Delivery fee" : "Collection fee"}</small>
           <strong>{money(deliveryFee)}</strong>
         </span>
         <span>
