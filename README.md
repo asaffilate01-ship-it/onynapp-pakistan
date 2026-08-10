@@ -1,24 +1,45 @@
-# Onynapp Pakistan
+# Onyn Pakistan
 
-onynapp is the food delivery app, epos system as a rivcal to foodpanda etc, we dont charge commission like foodpand does in pakistan, we only charge a fixed month amount for the app and a cost to cost for the device. Free onboarding and also a delivery fee for the riders on a par with foodpanda and foodpapa in pakistan. we want to launch in pakistan. we can have sales agents on commission that sign up vendors and recieve commisison etc. this is our uk pdfs
+Onyn is a Pakistan-only food delivery and ePOS marketplace for customers, restaurants, home chefs, riders and local sales partners.
 
-This project was built with [Lovable](https://lovable.dev).
+The commercial model is designed around a predictable monthly vendor subscription rather than an Onyn sales commission on every order. Payment processing, delivery, hardware and subscription charges must still be disclosed clearly in the final partner agreement.
 
-## Build with Lovable
+## Current build
 
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/81dff424-60ec-45ad-a9dd-422ddb59c383).
+This repository now contains a responsive, production-buildable Phase 1 customer experience:
 
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
+- Pakistan-localised restaurant and home-chef discovery
+- Lahore, Islamabad and Karachi delivery-area selection examples
+- Search, cuisine filters, favourites and restaurant menus
+- Functional basket quantities, voucher input and clear fee breakdown
+- Checkout, cash-on-delivery selection and order confirmation flow
+- Mobile navigation and responsive desktop/tablet/mobile layouts
+- Customer mobile OTP entry screen ready for a real authentication service
+- Restaurant, rider, sales-agent and operations entry points
+- Global CSP, frame protection, MIME sniffing protection, permissions and referrer headers
+- CI build, lint, type checks and dependency audit workflow
+
+All restaurant, menu, order and pricing records in Phase 1 are labelled demo data. The application does not yet process a real order or payment.
 
 ## Development
 
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+Requires Node.js 22 or newer.
 
 ```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
+npm ci
 npm run dev
 ```
+
+Quality checks:
+
+```sh
+npm run check
+```
+
+## Product and launch status
+
+See [docs/PRODUCTION_READINESS.md](docs/PRODUCTION_READINESS.md) for the verified baseline, competitor comparison, target architecture, security requirements, role model and phased go-live plan.
+
+## Lovable
+
+The repository remains linked to the original [Lovable project](https://lovable.dev/projects/81dff424-60ec-45ad-a9dd-422ddb59c383). Keep GitHub as the source of truth and review Lovable-generated commits before merging.
