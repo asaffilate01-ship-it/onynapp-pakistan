@@ -67,12 +67,15 @@ describe("vendor operational calculations", () => {
   });
 
   it("summarises active orders and COD exposure", () => {
-    const metrics = vendorMetrics([
-      base,
-      { ...base, id: "2", status: "preparing", totalPaisa: 100_000 },
-      { ...base, id: "3", status: "ready", payment: "paid", totalPaisa: 50_000 },
-      { ...base, id: "4", status: "rejected", totalPaisa: 80_000 },
-    ]);
+    const metrics = vendorMetrics(
+      [
+        base,
+        { ...base, id: "2", status: "preparing", totalPaisa: 100_000 },
+        { ...base, id: "3", status: "ready", payment: "paid", totalPaisa: 50_000 },
+        { ...base, id: "4", status: "rejected", totalPaisa: 80_000 },
+      ],
+      Date.parse("2026-08-11T10:06:00.000Z"),
+    );
     expect(metrics.newOrders).toBe(1);
     expect(metrics.cooking).toBe(1);
     expect(metrics.ready).toBe(1);

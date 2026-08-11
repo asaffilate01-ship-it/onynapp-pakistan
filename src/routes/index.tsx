@@ -17,7 +17,6 @@ import {
   Search,
   ShieldCheck,
   ShoppingBag,
-  SlidersHorizontal,
   Sparkles,
   Star,
   Store,
@@ -28,8 +27,32 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { useMemo, useState } from "react";
-import { isPilotBackendConfigured, requestPakistanOtp, verifyPakistanOtp } from "../lib/supabase";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  canRequestCancellation,
+  customerOrderProgress,
+  type CustomerOrder,
+} from "../lib/customer-workspace";
+import {
+  checkPilotServiceability,
+  isPilotLocationServiceable,
+  pilotLocations,
+  type ServiceabilityResult,
+} from "../lib/serviceability";
+import {
+  createCodOrder,
+  getCurrentCustomer,
+  isPilotBackendConfigured,
+  listCustomerOrders,
+  listMarketplaceCatalog,
+  requestCustomerCancellation,
+  requestPakistanOtp,
+  saveCustomerPilotAddress,
+  signOutCustomer,
+  subscribeToCustomerOrders,
+  verifyPakistanOtp,
+  type CreatedCodOrder,
+} from "../lib/supabase";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -38,7 +61,7 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Order from local restaurants and home chefs with clear prices, live tracking and fair delivery across Pakistan.",
+          "Order from local restaurants and home chefs with clear prices, live tracking and fair delivery, starting with selected Lahore pilot zones.",
       },
       { property: "og:title", content: "Onyn — Local food. Fair delivery." },
       {
@@ -63,6 +86,11 @@ type Restaurant = {
   emoji: string;
   gradient: string;
   tags: string[];
+  serviceFee?: number;
+  acceptingOrders?: boolean;
+  acceptsDelivery?: boolean;
+  acceptsCollection?: boolean;
+  isLive?: boolean;
 };
 
 type MenuItem = {
@@ -73,6 +101,9 @@ type MenuItem = {
   price: number;
   emoji: string;
   popular?: boolean;
+  available?: boolean;
+  category?: string;
+  isLive?: boolean;
 };
 
 type CartLine = MenuItem & { quantity: number };
@@ -85,7 +116,6 @@ const categories = [
   ["🥘", "Home chefs"],
   ["🍗", "Chicken"],
   ["🥗", "Healthy"],
-  ["🛒", "Groceries"],
   ["🍰", "Desserts"],
 ];
 
@@ -304,19 +334,44 @@ function money(value: number) {
 }
 
 function OnynApp() {
+  const backendConfigured = isPilotBackendConfigured();
   const [view, setView] = useState<AppView>("home");
   const [query, setQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
   const [serviceMode, setServiceMode] = useState<ServiceMode>("food");
   const [fulfilment, setFulfilment] = useState<"delivery" | "collection">("delivery");
   const [selectedRestaurant, setSelectedRestaurant] = useState<Restaurant>(restaurants[0]);
+  const [marketRestaurants, setMarketRestaurants] = useState<Restaurant[]>(restaurants);
+  const [marketMenu, setMarketMenu] = useState<MenuItem[]>(menu);
+  const [catalogState, setCatalogState] = useState<"demo" | "loading" | "live" | "empty" | "error">(
+    backendConfigured ? "loading" : "demo",
+  );
+  const [catalogMessage, setCatalogMessage] = useState("");
   const [cart, setCart] = useState<CartLine[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
   const [roleOpen, setRoleOpen] = useState(false);
+  const [partnerMessage, setPartnerMessage] = useState("");
   const [locationOpen, setLocationOpen] = useState(false);
   const [location, setLocation] = useState("Gulberg III, Lahore");
+  const [locationQuery, setLocationQuery] = useState("");
+  const [serviceabilityResult, setServiceabilityResult] = useState<ServiceabilityResult | null>(
+    null,
+  );
+  const [addressLine, setAddressLine] = useState("");
+  const [landmark, setLandmark] = useState("");
+  const [deliveryNote, setDeliveryNote] = useState("");
   const [favourites, setFavourites] = useState<string[]>([]);
   const [orderPlaced, setOrderPlaced] = useState(false);
+  const [placedOrder, setPlacedOrder] = useState<CreatedCodOrder | null>(null);
+  const [customerId, setCustomerId] = useState<string | null>(null);
+  const [customerOrders, setCustomerOrders] = useState<CustomerOrder[]>([]);
+  const [ordersState, setOrdersState] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [checkoutState, setCheckoutState] = useState<"idle" | "placing" | "error">("idle");
+  const [checkoutMessage, setCheckoutMessage] = useState("");
+  const [returnToCheckout, setReturnToCheckout] = useState(false);
+  const [cancelOrderId, setCancelOrderId] = useState<string | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelState, setCancelState] = useState<"idle" | "sending" | "error">("idle");
   const [phone, setPhone] = useState("");
   const [otpCode, setOtpCode] = useState("");
   const [pendingPhone, setPendingPhone] = useState("");
@@ -325,9 +380,74 @@ function OnynApp() {
   >("idle");
   const [otpMessage, setOtpMessage] = useState("");
 
+  const loadOrders = useCallback(async () => {
+    if (!backendConfigured) return;
+    setOrdersState("loading");
+    try {
+      setCustomerOrders(await listCustomerOrders());
+      setOrdersState("ready");
+    } catch {
+      setOrdersState("error");
+    }
+  }, [backendConfigured]);
+
+  useEffect(() => {
+    if (!backendConfigured) return;
+    let active = true;
+    setCatalogState("loading");
+    void listMarketplaceCatalog("Lahore")
+      .then((catalog) => {
+        if (!active) return;
+        if (!catalog.restaurants.length) {
+          setMarketRestaurants([]);
+          setMarketMenu([]);
+          setCatalogState("empty");
+          setCatalogMessage("No Lahore pilot restaurant is accepting discovery yet.");
+          return;
+        }
+        const nextRestaurants = catalog.restaurants as Restaurant[];
+        setMarketRestaurants(nextRestaurants);
+        setMarketMenu(catalog.menu as MenuItem[]);
+        setSelectedRestaurant(nextRestaurants[0]);
+        setCatalogState("live");
+        setCatalogMessage("");
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        setMarketRestaurants([]);
+        setMarketMenu([]);
+        setCatalogState("error");
+        setCatalogMessage(
+          error instanceof Error ? error.message : "The live catalog is unavailable.",
+        );
+      });
+    return () => {
+      active = false;
+    };
+  }, [backendConfigured]);
+
+  useEffect(() => {
+    if (!backendConfigured) return;
+    let active = true;
+    void getCurrentCustomer().then((user) => {
+      if (!active || !user) return;
+      setCustomerId(user.id);
+      setOtpState("verified");
+      void loadOrders();
+    });
+    return () => {
+      active = false;
+    };
+  }, [backendConfigured, loadOrders]);
+
+  useEffect(() => {
+    if (!customerId) return;
+    return subscribeToCustomerOrders(customerId, () => void loadOrders());
+  }, [customerId, loadOrders]);
+
   const filteredRestaurants = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    return restaurants.filter((restaurant) => {
+    return marketRestaurants.filter((restaurant) => {
       const categoryMatch =
         activeCategory === "All" ||
         restaurant.tags.some((tag) => tag.toLowerCase() === activeCategory.toLowerCase());
@@ -338,15 +458,39 @@ function OnynApp() {
           .includes(needle);
       return categoryMatch && queryMatch;
     });
-  }, [activeCategory, query]);
+  }, [activeCategory, marketRestaurants, query]);
 
-  const restaurantMenu = menu.filter((item) => item.restaurantId === selectedRestaurant.id);
+  const restaurantMenu = marketMenu.filter((item) => item.restaurantId === selectedRestaurant.id);
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const deliveryFee = cart.length && fulfilment === "delivery" ? selectedRestaurant.delivery : 0;
-  const serviceFee = cart.length ? 29 : 0;
+  const serviceFee = cart.length ? (selectedRestaurant.serviceFee ?? 29) : 0;
   const total = subtotal + deliveryFee + serviceFee;
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   const activeService = serviceModes.find((mode) => mode.id === serviceMode) ?? serviceModes[0];
+  const deliveryAddressComplete =
+    fulfilment === "collection" ||
+    (isPilotLocationServiceable(location) &&
+      addressLine.trim().length >= 5 &&
+      landmark.trim().length >= 3);
+  const minimumOrderMet = subtotal >= selectedRestaurant.min;
+  const fulfilmentAvailable =
+    fulfilment === "delivery"
+      ? selectedRestaurant.acceptsDelivery !== false
+      : selectedRestaurant.acceptsCollection !== false;
+  const checkoutReady =
+    deliveryAddressComplete &&
+    minimumOrderMet &&
+    fulfilmentAvailable &&
+    selectedRestaurant.acceptingOrders !== false &&
+    checkoutState !== "placing";
+
+  function checkAddress() {
+    const result = checkPilotServiceability(locationQuery);
+    setServiceabilityResult(result);
+    if (result.status === "serviceable") {
+      setLocation(result.location.label);
+    }
+  }
 
   function navigate(next: AppView) {
     setView(next);
@@ -354,12 +498,25 @@ function OnynApp() {
   }
 
   function openRestaurant(restaurant: Restaurant) {
+    setOrderPlaced(false);
+    setPlacedOrder(null);
+    setCheckoutMessage("");
+    if (cart.length && cart[0].restaurantId !== restaurant.id) {
+      setCart([]);
+      setCatalogMessage("Your basket was cleared because each order can contain one restaurant.");
+    }
+    if (fulfilment === "delivery" && restaurant.acceptsDelivery === false) {
+      setFulfilment("collection");
+    } else if (fulfilment === "collection" && restaurant.acceptsCollection === false) {
+      setFulfilment("delivery");
+    }
     setSelectedRestaurant(restaurant);
     setView("restaurant");
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function addItem(item: MenuItem) {
+    if (item.available === false || selectedRestaurant.acceptingOrders === false) return;
     setCart((current) => {
       const existing = current.find((line) => line.id === item.id);
       if (existing) {
@@ -407,12 +564,103 @@ function OnynApp() {
     setOtpState("verifying");
     const result = await verifyPakistanOtp(pendingPhone, otpCode);
     if (result.ok) {
+      const user = await getCurrentCustomer();
+      setCustomerId(user?.id ?? null);
+      if (user) void loadOrders();
       setOtpState("verified");
       setOtpMessage("Mobile number verified. You are securely signed in.");
+      if (returnToCheckout) {
+        setReturnToCheckout(false);
+        navigate("checkout");
+      }
       return;
     }
     setOtpState("error");
     setOtpMessage(result.message);
+  }
+
+  async function placeOrder() {
+    if (checkoutState === "placing" || !cart.length) return;
+    setCheckoutMessage("");
+
+    if (catalogState !== "live") {
+      setPlacedOrder(null);
+      setOrderPlaced(true);
+      return;
+    }
+    if (!customerId) {
+      setReturnToCheckout(true);
+      setOtpMessage("Sign in securely to return to checkout and place this COD order.");
+      navigate("account");
+      return;
+    }
+
+    setCheckoutState("placing");
+    try {
+      const address =
+        fulfilment === "delivery"
+          ? await saveCustomerPilotAddress({
+              label: location,
+              city: "Lahore",
+              addressLine,
+              landmark,
+              deliveryNote,
+            })
+          : null;
+      const created = await createCodOrder({
+        branchId: selectedRestaurant.id,
+        addressId: address?.id ?? null,
+        fulfilment,
+        items: cart.map((item) => ({ menuItemId: item.id, quantity: item.quantity })),
+        note: deliveryNote,
+      });
+      setPlacedOrder(created);
+      setOrderPlaced(true);
+      setCart([]);
+      setCheckoutState("idle");
+      void loadOrders();
+    } catch (error) {
+      setCheckoutState("error");
+      setCheckoutMessage(
+        error instanceof Error ? error.message : "The order could not be placed safely.",
+      );
+    }
+  }
+
+  async function submitCancellation() {
+    if (!cancelOrderId || cancelState === "sending") return;
+    if (cancelReason.trim().length < 5) {
+      setCancelState("error");
+      return;
+    }
+    setCancelState("sending");
+    try {
+      const result = await requestCustomerCancellation(cancelOrderId, cancelReason);
+      setCancelOrderId(null);
+      setCancelReason("");
+      setCancelState("idle");
+      setCheckoutMessage(
+        result.outcome === "cancelled"
+          ? "The order was cancelled before the restaurant accepted it."
+          : result.outcome === "review_requested"
+            ? "The restaurant had started the order, so support review has been requested."
+            : "This completed order can no longer be cancelled.",
+      );
+      await loadOrders();
+    } catch (error) {
+      setCancelState("error");
+      setCheckoutMessage(error instanceof Error ? error.message : "Cancellation failed.");
+    }
+  }
+
+  async function logOutCustomer() {
+    await signOutCustomer();
+    setCustomerId(null);
+    setCustomerOrders([]);
+    setOtpState("idle");
+    setOtpCode("");
+    setPendingPhone("");
+    setOtpMessage("You have been signed out.");
   }
 
   return (
@@ -450,7 +698,7 @@ function OnynApp() {
               Partner with us
             </button>
             <button className="sign-in-button" type="button" onClick={() => navigate("account")}>
-              Sign in
+              {customerId ? "Account" : "Sign in"}
             </button>
           </nav>
 
@@ -554,7 +802,7 @@ function OnynApp() {
                   <Bike size={18} /> 24 min away
                 </div>
                 <div className="rating-chip">
-                  <Star size={16} fill="currentColor" /> 4.9 local favourite
+                  <ShieldCheck size={16} /> Verified Lahore partners
                 </div>
               </div>
             </section>
@@ -594,19 +842,39 @@ function OnynApp() {
               <div className="section-heading">
                 <div>
                   <span className="kicker">NEAR YOU</span>
-                  <h2 id="nearby-title">Popular in Lahore</h2>
+                  <h2 id="nearby-title">Lahore pilot restaurants</h2>
                 </div>
                 <button type="button" onClick={() => navigate("search")}>
                   View all <ArrowRight size={17} />
                 </button>
               </div>
-              <RestaurantGrid
-                items={restaurants.slice(0, 4)}
-                favourites={favourites}
-                fulfilment={fulfilment}
-                toggleFavourite={toggleFavourite}
-                openRestaurant={openRestaurant}
-              />
+              {catalogState === "loading" ? (
+                <p className="catalog-status" role="status">
+                  Loading verified pilot restaurants…
+                </p>
+              ) : marketRestaurants.length ? (
+                <RestaurantGrid
+                  items={marketRestaurants.slice(0, 4)}
+                  favourites={favourites}
+                  fulfilment={fulfilment}
+                  toggleFavourite={toggleFavourite}
+                  openRestaurant={openRestaurant}
+                />
+              ) : (
+                <EmptyState
+                  icon={Store}
+                  title="Pilot restaurants are not open yet"
+                  detail={
+                    catalogMessage ||
+                    "Verified Lahore partners will appear here when onboarding is complete."
+                  }
+                />
+              )}
+              {catalogState === "demo" && (
+                <p className="catalog-status demo" role="status">
+                  Preview catalog only — this deployment is not connected to live restaurant stock.
+                </p>
+              )}
             </section>
 
             <section className="fair-section">
@@ -692,9 +960,6 @@ function OnynApp() {
                   </button>
                 ),
               )}
-              <button type="button">
-                <SlidersHorizontal size={15} /> Filters
-              </button>
             </div>
             <div className="results-heading">
               <strong>{filteredRestaurants.length} places</strong>
@@ -702,6 +967,11 @@ function OnynApp() {
                 {fulfilment === "delivery" ? "Delivering to" : "Collection near"} {location}
               </span>
             </div>
+            {catalogMessage && (
+              <p className="catalog-status" role="status">
+                {catalogMessage}
+              </p>
+            )}
             {filteredRestaurants.length ? (
               <RestaurantGrid
                 items={filteredRestaurants}
@@ -752,15 +1022,19 @@ function OnynApp() {
               <div className="restaurant-title-row">
                 <div>
                   <span className="status-pill">
-                    <span /> Open
+                    <span /> {selectedRestaurant.acceptingOrders === false ? "Paused" : "Open"}
                   </span>
                   <h1>{selectedRestaurant.name}</h1>
                   <p>{selectedRestaurant.cuisine}</p>
                 </div>
                 <div className="rating-box">
                   <Star fill="currentColor" size={17} />
-                  <strong>{selectedRestaurant.rating}</strong>
-                  <small>{selectedRestaurant.reviews} reviews</small>
+                  <strong>{selectedRestaurant.isLive ? "New" : selectedRestaurant.rating}</strong>
+                  <small>
+                    {selectedRestaurant.isLive
+                      ? "Verified pilot partner"
+                      : `${selectedRestaurant.reviews} reviews`}
+                  </small>
                 </div>
               </div>
               <div className="restaurant-facts">
@@ -777,14 +1051,12 @@ function OnynApp() {
                   <ShoppingBag size={17} /> Min. {money(selectedRestaurant.min)}
                 </span>
               </div>
-              <div className="menu-nav">
-                <button className="active" type="button">
-                  Popular
-                </button>
-                <button type="button">Mains</button>
-                <button type="button">Sides</button>
-                <button type="button">Drinks</button>
-              </div>
+              {selectedRestaurant.acceptingOrders === false && (
+                <p className="catalog-status" role="status">
+                  This restaurant has paused new orders. You can browse the menu but cannot add
+                  items.
+                </p>
+              )}
               <div className="menu-layout">
                 <div>
                   <div className="section-heading compact">
@@ -812,8 +1084,12 @@ function OnynApp() {
                             type="button"
                             onClick={() => addItem(item)}
                             aria-label={`Add ${item.name}`}
+                            disabled={
+                              item.available === false ||
+                              selectedRestaurant.acceptingOrders === false
+                            }
                           >
-                            <Plus />
+                            {item.available === false ? <X /> : <Plus />}
                           </button>
                         </div>
                       </article>
@@ -822,7 +1098,7 @@ function OnynApp() {
                     <EmptyState
                       icon={Utensils}
                       title="Menu being prepared"
-                      detail="This demo restaurant's menu will be added during vendor onboarding."
+                      detail="This restaurant has not published any active menu items yet."
                     />
                   )}
                 </div>
@@ -836,6 +1112,9 @@ function OnynApp() {
                     total={total}
                     changeQuantity={changeQuantity}
                     checkout={() => navigate("checkout")}
+                    checkoutDisabled={
+                      selectedRestaurant.acceptingOrders === false || !fulfilmentAvailable
+                    }
                   />
                 </aside>
               </div>
@@ -852,8 +1131,12 @@ function OnynApp() {
                 </button>
                 <div className="page-heading">
                   <span className="kicker">SECURE CHECKOUT</span>
-                  <h1>Review and place order</h1>
-                  <p>Final fees are shown before you confirm.</p>
+                  <h1>Review the pilot order</h1>
+                  <p>
+                    {catalogState === "live"
+                      ? "The server rechecks stock, serviceability and every price before creating a cash-on-delivery order."
+                      : "Final fees are shown for review. This deployment is still using preview catalog data."}
+                  </p>
                 </div>
                 <div className="checkout-grid">
                   <div className="checkout-details">
@@ -861,23 +1144,46 @@ function OnynApp() {
                       icon={fulfilment === "delivery" ? MapPin : Store}
                       title={fulfilment === "delivery" ? "Delivery address" : "Collection branch"}
                       action="Change"
+                      onAction={() => setLocationOpen(true)}
                     >
                       <strong>{location}</strong>
                       <p>
                         {fulfilment === "delivery"
-                          ? "House 24, Street 7 • Leave at the door"
+                          ? "Controlled Lahore pilot zone"
                           : selectedRestaurant.name}
                       </p>
                     </CheckoutCard>
+                    {fulfilment === "delivery" && (
+                      <div className="delivery-address-fields">
+                        <label>
+                          <span>House, street or building</span>
+                          <input
+                            value={addressLine}
+                            onChange={(event) => setAddressLine(event.target.value)}
+                            maxLength={240}
+                            autoComplete="street-address"
+                            placeholder="House 24, Street 7"
+                          />
+                        </label>
+                        <label>
+                          <span>Nearest landmark (required)</span>
+                          <input
+                            value={landmark}
+                            onChange={(event) => setLandmark(event.target.value)}
+                            maxLength={160}
+                            placeholder="Near Main Market mosque"
+                          />
+                        </label>
+                      </div>
+                    )}
                     <CheckoutCard
                       icon={Clock3}
                       title={fulfilment === "delivery" ? "Delivery time" : "Collection time"}
-                      action="Schedule"
                     >
                       <strong>As soon as possible</strong>
                       <p>Estimated {selectedRestaurant.eta}</p>
                     </CheckoutCard>
-                    <CheckoutCard icon={WalletCards} title="Payment method" action="Change">
+                    <CheckoutCard icon={WalletCards} title="Payment method">
                       <strong>
                         {fulfilment === "delivery" ? "Cash on delivery" : "Pay on collection"}
                       </strong>
@@ -889,6 +1195,8 @@ function OnynApp() {
                       </span>
                       <textarea
                         maxLength={160}
+                        value={deliveryNote}
+                        onChange={(event) => setDeliveryNote(event.target.value)}
                         placeholder={
                           fulfilment === "delivery"
                             ? "Gate, landmark or rider instructions"
@@ -906,9 +1214,36 @@ function OnynApp() {
                       serviceFee={serviceFee}
                       total={total}
                       changeQuantity={changeQuantity}
-                      checkout={() => setOrderPlaced(true)}
-                      checkoutLabel={`Place order • ${money(total)}`}
+                      checkout={() => void placeOrder()}
+                      checkoutLabel={
+                        checkoutState === "placing"
+                          ? "Placing securely…"
+                          : `${catalogState === "live" ? "Place COD order" : "Preview order"} • ${money(total)}`
+                      }
+                      checkoutDisabled={!checkoutReady}
                     />
+                    {!deliveryAddressComplete && fulfilment === "delivery" && (
+                      <p className="checkout-blocker" role="status">
+                        Add the full address and a nearby landmark before placing this delivery
+                        order.
+                      </p>
+                    )}
+                    {!minimumOrderMet && cart.length > 0 && (
+                      <p className="checkout-blocker" role="status">
+                        Add {money(selectedRestaurant.min - subtotal)} more to meet this
+                        restaurant's minimum.
+                      </p>
+                    )}
+                    {selectedRestaurant.acceptingOrders === false && (
+                      <p className="checkout-blocker" role="status">
+                        This restaurant has paused new orders.
+                      </p>
+                    )}
+                    {checkoutMessage && (
+                      <p className="checkout-blocker" role="alert">
+                        {checkoutMessage}
+                      </p>
+                    )}
                   </aside>
                 </div>
               </>
@@ -917,15 +1252,28 @@ function OnynApp() {
                 <span>
                   <Check />
                 </span>
-                <p className="kicker">ORDER RECEIVED</p>
-                <h1>Thanks—your order is confirmed.</h1>
-                <p>
-                  Demo order <strong>#ON-10482</strong> is being sent to {selectedRestaurant.name}.
-                  In production this screen will use signed server events and live order updates.
-                </p>
+                <p className="kicker">{placedOrder ? "ORDER CONFIRMED" : "PILOT PREVIEW"}</p>
+                <h1>
+                  {placedOrder
+                    ? "Your COD order is confirmed."
+                    : "Thanks—your order preview is ready."}
+                </h1>
+                {placedOrder ? (
+                  <p>
+                    Order <strong>#{placedOrder.reference}</strong> was sent to{" "}
+                    {selectedRestaurant.name}. The server-confirmed total is{" "}
+                    <strong>{money(Math.round(placedOrder.total_paisa / 100))}</strong>.
+                  </p>
+                ) : (
+                  <p>
+                    This preview would be sent to {selectedRestaurant.name}. It has not created a
+                    live order or cash liability because this deployment has no configured pilot
+                    backend.
+                  </p>
+                )}
                 <div className="tracking-steps">
                   <span className="done">
-                    <Check /> Confirmed
+                    <Check /> {placedOrder ? "Placed" : "Simulated"}
                   </span>
                   <span>
                     <Utensils /> Preparing
@@ -946,7 +1294,7 @@ function OnynApp() {
                     navigate("orders");
                   }}
                 >
-                  Track order
+                  {placedOrder ? "Track live order" : "Preview tracking"}
                 </button>
               </div>
             )}
@@ -960,23 +1308,60 @@ function OnynApp() {
               <h1>Orders and live tracking</h1>
               <p>One place for active orders, support and receipts.</p>
             </div>
-            {orderPlaced ? (
+            {checkoutMessage && (
+              <p className="catalog-status" role="status">
+                {checkoutMessage}
+              </p>
+            )}
+            {backendConfigured && !customerId ? (
+              <EmptyState
+                icon={UserRound}
+                title="Sign in to see protected orders"
+                detail="Your order history is only loaded after secure mobile verification."
+                action="Sign in"
+                onAction={() => navigate("account")}
+              />
+            ) : backendConfigured && ordersState === "loading" ? (
+              <p className="catalog-status" role="status">
+                Loading your protected order history…
+              </p>
+            ) : backendConfigured && customerOrders.length ? (
+              <div className="customer-orders-list">
+                {customerOrders.map((order) => (
+                  <CustomerOrderCard
+                    key={order.id}
+                    order={order}
+                    onCancel={() => {
+                      setCancelOrderId(order.id);
+                      setCancelReason("");
+                      setCancelState("idle");
+                    }}
+                  />
+                ))}
+              </div>
+            ) : !backendConfigured && orderPlaced ? (
               <article className="active-order">
                 <div>
                   <span className="status-pill">
-                    <span /> Confirmed
+                    <span /> Simulated
                   </span>
                   <h2>{selectedRestaurant.name}</h2>
-                  <p>Order #ON-10482 • Estimated {selectedRestaurant.eta}</p>
+                  <p>Demo order #ON-10482 • Estimated {selectedRestaurant.eta}</p>
                 </div>
                 <PackageCheck size={42} />
-                <button type="button">View live status</button>
+                <button type="button" onClick={() => navigate("checkout")}>
+                  View live status
+                </button>
               </article>
             ) : (
               <EmptyState
                 icon={ShoppingBag}
-                title="No active orders"
-                detail="When you place an order, its live status and receipt will appear here."
+                title={ordersState === "error" ? "Orders could not be loaded" : "No orders yet"}
+                detail={
+                  ordersState === "error"
+                    ? "Check the connection and try loading your orders again."
+                    : "When you place an order, its protected live status and receipt will appear here."
+                }
                 action="Explore restaurants"
                 onAction={() => navigate("search")}
               />
@@ -989,83 +1374,101 @@ function OnynApp() {
             <div className="auth-card">
               <span className="brand-mark large">O</span>
               <span className="kicker">WELCOME TO ONYN</span>
-              <h1>Sign in with your mobile</h1>
+              <h1>{customerId ? "You are securely signed in" : "Sign in with your mobile"}</h1>
               <p>
-                We will send a one-time code. Never share that code with anyone, including an Onyn
-                agent.
+                {customerId
+                  ? "Your protected orders and live status updates are available on this device."
+                  : "We will send a one-time code. Never share that code with anyone, including an Onyn agent."}
               </p>
-              <label>
-                <span>Pakistan mobile number</span>
-                <div className="phone-input">
-                  <strong>+92</strong>
-                  <input
-                    inputMode="tel"
-                    autoComplete="tel"
-                    maxLength={10}
-                    placeholder="3XX XXXXXXX"
-                    aria-label="Pakistan mobile number"
-                    value={phone}
-                    onChange={(event) => {
-                      setPhone(event.target.value);
-                      if (otpState !== "idle") {
-                        setOtpState("idle");
-                        setOtpCode("");
-                        setPendingPhone("");
-                        setOtpMessage("");
-                      }
-                    }}
-                  />
-                </div>
-              </label>
-              {!isPilotBackendConfigured() && (
-                <p className="demo-auth-notice">
-                  Demo mode: SMS sign-in is not connected in this deployment.
-                </p>
-              )}
-              {otpMessage && (
-                <p className={`auth-feedback ${otpState}`} role="status" aria-live="polite">
-                  {otpMessage}
-                </p>
-              )}
-              {(otpState === "sent" || otpState === "verifying" || otpState === "error") &&
-                pendingPhone && (
-                  <label className="otp-code-field">
-                    <span>Six-digit code</span>
-                    <input
-                      inputMode="numeric"
-                      autoComplete="one-time-code"
-                      maxLength={6}
-                      value={otpCode}
-                      onChange={(event) => setOtpCode(event.target.value.replace(/\D/g, ""))}
-                      aria-label="Six-digit verification code"
-                    />
+              {customerId ? (
+                <>
+                  <button type="button" onClick={() => navigate("orders")}>
+                    View my orders <ArrowRight size={18} />
+                  </button>
+                  <button
+                    type="button"
+                    className="account-secondary"
+                    onClick={() => void logOutCustomer()}
+                  >
+                    Sign out
+                  </button>
+                </>
+              ) : (
+                <>
+                  <label>
+                    <span>Pakistan mobile number</span>
+                    <div className="phone-input">
+                      <strong>+92</strong>
+                      <input
+                        inputMode="tel"
+                        autoComplete="tel"
+                        maxLength={10}
+                        placeholder="3XX XXXXXXX"
+                        aria-label="Pakistan mobile number"
+                        value={phone}
+                        onChange={(event) => {
+                          setPhone(event.target.value);
+                          if (otpState !== "idle") {
+                            setOtpState("idle");
+                            setOtpCode("");
+                            setPendingPhone("");
+                            setOtpMessage("");
+                          }
+                        }}
+                      />
+                    </div>
                   </label>
-                )}
-              {otpState !== "verified" && (
-                <button
-                  type="button"
-                  onClick={pendingPhone ? verifyOtpCode : sendOtp}
-                  disabled={otpState === "sending" || otpState === "verifying"}
-                >
-                  {otpState === "sending"
-                    ? "Sending…"
-                    : otpState === "verifying"
-                      ? "Verifying…"
-                      : pendingPhone
-                        ? "Verify code"
-                        : "Send secure code"}
-                  <ArrowRight size={18} />
-                </button>
+                  {!isPilotBackendConfigured() && (
+                    <p className="demo-auth-notice">
+                      Demo mode: SMS sign-in is not connected in this deployment.
+                    </p>
+                  )}
+                  {otpMessage && (
+                    <p className={`auth-feedback ${otpState}`} role="status" aria-live="polite">
+                      {otpMessage}
+                    </p>
+                  )}
+                  {(otpState === "sent" || otpState === "verifying" || otpState === "error") &&
+                    pendingPhone && (
+                      <label className="otp-code-field">
+                        <span>Six-digit code</span>
+                        <input
+                          inputMode="numeric"
+                          autoComplete="one-time-code"
+                          maxLength={6}
+                          value={otpCode}
+                          onChange={(event) => setOtpCode(event.target.value.replace(/\D/g, ""))}
+                          aria-label="Six-digit verification code"
+                        />
+                      </label>
+                    )}
+                  {otpState !== "verified" && (
+                    <button
+                      type="button"
+                      onClick={pendingPhone ? verifyOtpCode : sendOtp}
+                      disabled={otpState === "sending" || otpState === "verifying"}
+                    >
+                      {otpState === "sending"
+                        ? "Sending…"
+                        : otpState === "verifying"
+                          ? "Verifying…"
+                          : pendingPhone
+                            ? "Verify code"
+                            : "Send secure code"}
+                      <ArrowRight size={18} />
+                    </button>
+                  )}
+                  {otpState === "verified" && (
+                    <button type="button" onClick={() => navigate("home")}>
+                      Continue to Onyn <Check size={18} />
+                    </button>
+                  )}
+                  <small>
+                    By continuing you agree to Onyn's Terms and Privacy Notice. OTP rate limits and
+                    device checks are required before launch.
+                  </small>
+                </>
               )}
-              {otpState === "verified" && (
-                <button type="button" onClick={() => navigate("home")}>
-                  Continue to Onyn <Check size={18} />
-                </button>
-              )}
-              <small>
-                By continuing you agree to Onyn's Terms and Privacy Notice. OTP rate limits and
-                device checks are required before launch.
-              </small>
             </div>
           </section>
         )}
@@ -1086,8 +1489,18 @@ function OnynApp() {
             <button onClick={() => navigate("search")} type="button">
               Restaurants
             </button>
-            <button type="button">Groceries</button>
-            <button type="button">Help centre</button>
+            <button
+              type="button"
+              onClick={() => {
+                setServiceMode("grocery");
+                navigate("home");
+              }}
+            >
+              Groceries roadmap
+            </button>
+            <button type="button" disabled title="Support service must be staffed before launch">
+              Help centre (pre-launch)
+            </button>
           </div>
           <div>
             <strong>Partners</strong>
@@ -1103,13 +1516,26 @@ function OnynApp() {
           </div>
           <div>
             <strong>Legal</strong>
-            <button type="button">Terms</button>
-            <button type="button">Privacy</button>
-            <button type="button">Refunds</button>
+            <button type="button" disabled title="Legal approval required before public launch">
+              Terms (drafting)
+            </button>
+            <button type="button" disabled title="Legal approval required before public launch">
+              Privacy (drafting)
+            </button>
+            <button
+              type="button"
+              disabled
+              title="Operations approval required before public launch"
+            >
+              Refunds (drafting)
+            </button>
           </div>
         </div>
         <div className="footer-bottom">
-          <span>© 2026 Onyn Pakistan. Demo marketplace.</span>
+          <span>
+            © 2026 Onyn Pakistan.{" "}
+            {catalogState === "demo" ? "Preview marketplace." : "Controlled Lahore pilot."}
+          </span>
           <span>English • اردو (planned)</span>
         </div>
       </footer>
@@ -1163,6 +1589,7 @@ function OnynApp() {
               setCartOpen(false);
               navigate("checkout");
             }}
+            checkoutDisabled={selectedRestaurant.acceptingOrders === false || !fulfilmentAvailable}
           />
         </Modal>
       )}
@@ -1170,37 +1597,64 @@ function OnynApp() {
       {locationOpen && (
         <Modal title="Choose delivery location" onClose={() => setLocationOpen(false)}>
           <div className="location-modal">
-            <button type="button" className="locate-button">
-              <LocateFixed /> Use my current location
-            </button>
+            <div className="pilot-area-note">
+              <LocateFixed />
+              <span>
+                <strong>Lahore pilot</strong>
+                <small>Ordering is open only in the two confirmed zones below.</small>
+              </span>
+            </div>
             <label>
-              <span>Search your area or landmark</span>
+              <span>Check your area and city</span>
               <div className="modal-search">
                 <Search size={18} />
-                <input placeholder="e.g. DHA Phase 5, Lahore" />
+                <input
+                  value={locationQuery}
+                  onChange={(event) => {
+                    setLocationQuery(event.target.value);
+                    setServiceabilityResult(null);
+                  }}
+                  onKeyDown={(event) => event.key === "Enter" && checkAddress()}
+                  placeholder="e.g. DHA Phase 5, Lahore"
+                />
+                <button type="button" onClick={checkAddress}>
+                  Check
+                </button>
               </div>
             </label>
-            {[
-              "Gulberg III, Lahore",
-              "DHA Phase 5, Lahore",
-              "F-7 Markaz, Islamabad",
-              "Clifton Block 5, Karachi",
-            ].map((place) => (
+            {serviceabilityResult && (
+              <p className={`serviceability-result ${serviceabilityResult.status}`} role="status">
+                {serviceabilityResult.status === "serviceable" ? <Check /> : <MapPin />}
+                {serviceabilityResult.message}
+              </p>
+            )}
+            {pilotLocations.map((place) => (
               <button
-                className="saved-location"
+                className={`saved-location ${place.launchStatus}`}
                 type="button"
-                key={place}
+                key={place.id}
                 onClick={() => {
-                  setLocation(place);
-                  setLocationOpen(false);
+                  if (place.launchStatus === "pilot") {
+                    setLocation(place.label);
+                    setLocationOpen(false);
+                    setServiceabilityResult(null);
+                    return;
+                  }
+                  setServiceabilityResult({
+                    status: "coming_soon",
+                    city: place.city,
+                    message: `${place.city} is coming soon. The controlled launch pilot is in selected Lahore zones.`,
+                  });
                 }}
               >
                 <MapPin />
                 <span>
-                  <strong>{place}</strong>
-                  <small>Saved delivery area</small>
+                  <strong>{place.label}</strong>
+                  <small>
+                    {place.launchStatus === "pilot" ? "Pilot delivery area" : "Coming soon"}
+                  </small>
                 </span>
-                {location === place && <Check />}
+                {location === place.label && <Check />}
               </button>
             ))}
           </div>
@@ -1208,7 +1662,13 @@ function OnynApp() {
       )}
 
       {roleOpen && (
-        <Modal title="Grow with Onyn" onClose={() => setRoleOpen(false)}>
+        <Modal
+          title="Grow with Onyn"
+          onClose={() => {
+            setRoleOpen(false);
+            setPartnerMessage("");
+          }}
+        >
           <div className="role-modal">
             <p>
               Choose the workspace you want to join. Each production portal will have its own
@@ -1218,7 +1678,15 @@ function OnynApp() {
               <button
                 type="button"
                 key={title}
-                onClick={() => href && window.location.assign(href)}
+                onClick={() => {
+                  if (href) {
+                    window.location.assign(href);
+                    return;
+                  }
+                  setPartnerMessage(
+                    `${title} applications are not open during the controlled restaurant pilot.`,
+                  );
+                }}
               >
                 <span className="role-icon">
                   <Icon />
@@ -1230,8 +1698,64 @@ function OnynApp() {
                 <ArrowRight />
               </button>
             ))}
-            <button type="button" className="admin-link">
+            {partnerMessage && (
+              <p className="partner-status" role="status">
+                <Clock3 size={16} /> {partnerMessage}
+              </p>
+            )}
+            <button
+              type="button"
+              className="admin-link"
+              onClick={() =>
+                setPartnerMessage(
+                  "The operations portal is private and available only to invited staff.",
+                )
+              }
+            >
               <Building2 /> Onyn operations sign-in
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {cancelOrderId && (
+        <Modal
+          title="Request cancellation"
+          onClose={() => {
+            setCancelOrderId(null);
+            setCancelReason("");
+            setCancelState("idle");
+          }}
+        >
+          <div className="cancellation-modal">
+            <p>
+              Orders still at <strong>Placed</strong> are cancelled immediately. If preparation has
+              started, this creates an auditable support review instead.
+            </p>
+            <label>
+              <span>Why do you need to cancel?</span>
+              <textarea
+                value={cancelReason}
+                maxLength={300}
+                onChange={(event) => {
+                  setCancelReason(event.target.value);
+                  if (cancelState === "error") setCancelState("idle");
+                }}
+                placeholder="For example: I entered the wrong delivery address"
+              />
+            </label>
+            {cancelState === "error" && (
+              <p className="checkout-blocker" role="alert">
+                Enter at least five characters so the restaurant and support team have a reason.
+              </p>
+            )}
+            <button
+              type="button"
+              className="checkout-button"
+              disabled={cancelState === "sending" || cancelReason.trim().length < 5}
+              onClick={() => void submitCancellation()}
+            >
+              {cancelState === "sending" ? "Submitting…" : "Submit cancellation request"}
             </button>
           </div>
         </Modal>
@@ -1267,9 +1791,6 @@ function SearchBox({
           <X size={17} />
         </button>
       )}
-      <button type="button" className="search-submit">
-        Search
-      </button>
     </label>
   );
 }
@@ -1316,7 +1837,8 @@ function RestaurantGrid({
             <span className="restaurant-name">
               <strong>{restaurant.name}</strong>
               <span>
-                <Star size={14} fill="currentColor" /> {restaurant.rating}
+                <Star size={14} fill="currentColor" />{" "}
+                {restaurant.isLive ? "New" : restaurant.rating}
               </span>
             </span>
             <small>{restaurant.cuisine}</small>
@@ -1337,6 +1859,60 @@ function RestaurantGrid({
   );
 }
 
+function CustomerOrderCard({ order, onCancel }: { order: CustomerOrder; onCancel: () => void }) {
+  const progress = customerOrderProgress(order.status);
+  const terminal = ["rejected", "cancelled", "delivery_failed", "refunded"].includes(order.status);
+  const statusLabel = order.status.replaceAll("_", " ");
+  return (
+    <article className="customer-order-card">
+      <header>
+        <div>
+          <span className={`status-pill ${terminal ? "terminal" : ""}`}>
+            <span /> {statusLabel}
+          </span>
+          <h2>{order.branchName}</h2>
+          <p>
+            #{order.reference} •{" "}
+            {new Intl.DateTimeFormat("en-PK", {
+              dateStyle: "medium",
+              timeStyle: "short",
+            }).format(new Date(order.placedAt))}
+          </p>
+        </div>
+        <strong>{money(order.total)}</strong>
+      </header>
+      {!terminal && (
+        <div className="order-progress" aria-label={`Order progress: ${progress}%`}>
+          <span style={{ width: `${progress}%` }} />
+        </div>
+      )}
+      <div className="customer-order-lines">
+        {order.lines.map((line) => (
+          <span key={line.id}>
+            <small>
+              {line.quantity}× {line.name}
+            </small>
+            <b>{money(line.lineTotal)}</b>
+          </span>
+        ))}
+      </div>
+      <footer>
+        <span>
+          {order.fulfilment === "delivery" ? <Bike size={16} /> : <Store size={16} />}
+          {order.fulfilment === "delivery" ? "Delivery" : "Collection"} • Cash
+        </span>
+        {order.openSupportCaseId ? (
+          <small>Cancellation review in progress</small>
+        ) : canRequestCancellation(order.status) ? (
+          <button type="button" onClick={onCancel}>
+            Request cancellation
+          </button>
+        ) : null}
+      </footer>
+    </article>
+  );
+}
+
 function BasketContent({
   cart,
   subtotal,
@@ -1347,6 +1923,7 @@ function BasketContent({
   changeQuantity,
   checkout,
   checkoutLabel = "Go to checkout",
+  checkoutDisabled = false,
 }: {
   cart: CartLine[];
   subtotal: number;
@@ -1357,6 +1934,7 @@ function BasketContent({
   changeQuantity: (id: string, amount: number) => void;
   checkout: () => void;
   checkoutLabel?: string;
+  checkoutDisabled?: boolean;
 }) {
   if (!cart.length)
     return (
@@ -1396,10 +1974,7 @@ function BasketContent({
           </div>
         ))}
       </div>
-      <label className="voucher-field">
-        <input placeholder="Voucher code" maxLength={32} />
-        <button type="button">Apply</button>
-      </label>
+      <p className="voucher-roadmap">Voucher codes will open after the controlled pilot.</p>
       <div className="price-lines">
         <span>
           <small>Subtotal</small>
@@ -1418,7 +1993,12 @@ function BasketContent({
           <b>{money(total)}</b>
         </span>
       </div>
-      <button className="checkout-button" type="button" onClick={checkout}>
+      <button
+        className="checkout-button"
+        type="button"
+        onClick={checkout}
+        disabled={checkoutDisabled}
+      >
         {checkoutLabel} <ArrowRight size={18} />
       </button>
       <p className="fee-note">
@@ -1510,11 +2090,13 @@ function CheckoutCard({
   icon: Icon,
   title,
   action,
+  onAction,
   children,
 }: {
   icon: typeof MapPin;
   title: string;
-  action: string;
+  action?: string;
+  onAction?: () => void;
   children: React.ReactNode;
 }) {
   return (
@@ -1526,7 +2108,11 @@ function CheckoutCard({
         <small>{title}</small>
         {children}
       </div>
-      <button type="button">{action}</button>
+      {action && (
+        <button type="button" onClick={onAction}>
+          {action}
+        </button>
+      )}
     </article>
   );
 }

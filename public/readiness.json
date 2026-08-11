@@ -1,0 +1,7 @@
+{
+  "application": "onyn-pakistan",
+  "release": "phase-3c-candidate",
+  "status": "staging-candidate",
+  "live_ordering": "deployment-and-acceptance-required",
+  "scope": "controlled-lahore-cod-pilot"
+}

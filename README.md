@@ -6,20 +6,24 @@ The commercial model is designed around a predictable monthly vendor subscriptio
 
 ## Current build
 
-This repository now contains a responsive, production-buildable Phase 3A pilot candidate:
+This repository now contains a responsive, production-buildable Phase 3C pilot candidate:
 
 - Pakistan-localised restaurant and home-chef discovery
 - Onyn-branded Food, Grocery, Pharmacy and Courier service switcher with non-launch services clearly gated
 - Functional delivery/collection choice with matching fee, checkout and tracking language
-- Lahore, Islamabad and Karachi delivery-area selection examples
+- Controlled Gulberg III and DHA Phase 5 Lahore delivery areas; Islamabad and Karachi clearly marked coming soon
 - Search, cuisine filters, favourites and restaurant menus
-- Functional basket quantities, voucher input and clear fee breakdown
-- Checkout, cash-on-delivery selection and order confirmation flow
+- Functional basket quantities and clear fee breakdown; vouchers remain explicitly deferred
+- Live catalog loading that never falls back to demo restaurants after a backend failure
+- Authenticated cash-on-delivery checkout using protected server prices and live menu IDs
+- Server-enforced, branch-specific Lahore service zones and reusable verified addresses
+- Protected customer order history, realtime status refresh and server totals
+- Immediate pre-acceptance cancellation plus auditable support review after acceptance
 - Mobile navigation and responsive desktop/tablet/mobile layouts
 - Customer mobile OTP entry screen ready for a real authentication service
 - Restaurant, rider, supplier, sales-agent and operations entry points
 - Global CSP, frame protection, MIME sniffing protection, permissions and referrer headers
-- CI build, lint, type checks and dependency audit workflow
+- CI tests, build, lint, type checks and production dependency audit workflow
 - Secure Supabase pilot schema with RLS, server-priced idempotent COD ordering and vendor transitions
 - SMS OTP send/verify adapter that stays visibly disabled until Supabase is configured
 - Automated Pakistan phone and trusted-price calculation tests
@@ -28,9 +32,12 @@ This repository now contains a responsive, production-buildable Phase 3A pilot c
 - Required rejection reasons, urgency indicators, COD exposure and customer landmark/notes
 - Busy mode, accepting-orders, preparation-time and menu sold-out controls
 - Protected branch/menu/order operations, audit events and vendor realtime/list adapters
+- Authenticated restaurant SMS sign-in, active membership guard and real branch/menu/order loading
+- Manager-only new-order approval and branch settings with least-privilege kitchen controls
+- Protected restaurant access to delivery address, landmark and customer notes
 - Automated vendor state-machine, urgency and operational-metric tests
 
-All restaurant, menu, order and pricing records in Phase 1 are labelled demo data. The application does not yet process a real order or payment.
+Without a configured Supabase staging project the marketplace and restaurant workspace remain visibly labelled demo data. With staging configured, Phase 3C can create and track server-priced COD orders; online payments remain outside the pilot.
 
 ## Development
 
