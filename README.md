@@ -6,7 +6,7 @@ The commercial model is designed around a predictable monthly vendor subscriptio
 
 ## Current build
 
-This repository now contains a responsive, production-buildable Phase 1 customer experience:
+This repository now contains a responsive, production-buildable Phase 2 pilot candidate:
 
 - Pakistan-localised restaurant and home-chef discovery
 - Onyn-branded Food, Grocery, Pharmacy and Courier service switcher with non-launch services clearly gated
@@ -20,6 +20,9 @@ This repository now contains a responsive, production-buildable Phase 1 customer
 - Restaurant, rider, supplier, sales-agent and operations entry points
 - Global CSP, frame protection, MIME sniffing protection, permissions and referrer headers
 - CI build, lint, type checks and dependency audit workflow
+- Secure Supabase pilot schema with RLS, server-priced idempotent COD ordering and vendor transitions
+- SMS OTP send/verify adapter that stays visibly disabled until Supabase is configured
+- Automated Pakistan phone and trusted-price calculation tests
 
 All restaurant, menu, order and pricing records in Phase 1 are labelled demo data. The application does not yet process a real order or payment.
 
@@ -40,7 +43,11 @@ npm run check
 
 ## Product and launch status
 
-See [docs/PRODUCTION_READINESS.md](docs/PRODUCTION_READINESS.md) for the verified baseline, competitor comparison, target architecture, security requirements, role model and phased go-live plan. The parent repository and live-site review is documented separately in [docs/ONYN_REFERENCE_AUDIT.md](docs/ONYN_REFERENCE_AUDIT.md).
+See [docs/PRODUCTION_READINESS.md](docs/PRODUCTION_READINESS.md) for the go-live plan, [docs/ONYN_REFERENCE_AUDIT.md](docs/ONYN_REFERENCE_AUDIT.md) for the parent comparison and [docs/LIVE_DEPLOYMENT_AUDIT.md](docs/LIVE_DEPLOYMENT_AUDIT.md) for the Lovable review.
+
+## Pilot backend
+
+Copy `.env.example`, create a separate Supabase staging project, and follow [supabase/README.md](supabase/README.md). Never place a service-role key in a `VITE_*` variable.
 
 ## Lovable
 
