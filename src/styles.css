@@ -1555,6 +1555,19 @@ a:focus-visible {
   outline: none;
   padding: 13px;
 }
+.auth-card .otp-code-field {
+  margin-top: 10px;
+}
+.otp-code-field input {
+  width: 100%;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: 0.3em;
+  text-align: center;
+}
 .auth-card > button {
   width: 100%;
   display: flex;
@@ -1569,6 +1582,34 @@ a:focus-visible {
   font-weight: 900;
   cursor: pointer;
 }
+.auth-card > button:disabled {
+  cursor: wait;
+  opacity: 0.68;
+}
+.auth-card > .demo-auth-notice {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid #eadca4;
+  border-radius: 10px;
+  background: #fff9df;
+  color: #745b00;
+  font-weight: 700;
+}
+.auth-card > .auth-feedback {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f5f1f8;
+}
+.auth-card > .auth-feedback.sent,
+.auth-card > .auth-feedback.verified {
+  background: #eaf7ee;
+  color: #176335;
+}
+.auth-card > .auth-feedback.error {
+  background: #fff0f0;
+  color: #9a2424;
+}
 .auth-card > small {
   display: block;
   margin-top: 16px;
@@ -1579,7 +1620,7 @@ a:focus-visible {
 
 .site-footer {
   padding: 55px max(30px, calc((100% - 1120px) / 2)) 25px;
-  background: #10261b;
+  background: #21102f;
   color: white;
 }
 .footer-grid {

@@ -14,13 +14,15 @@ The repository began as a blank TanStack/Lovable starter. Phase 1 now provides a
 | Rider and dispatch              |                8% | Rider entry point exists. Verification, availability, dispatch, navigation, proof of delivery, safety and earnings remain.                                         |
 | Sales-agent portal              |                8% | Agent proposition exists. Lead ownership, duplicate protection, onboarding evidence and commission ledger remain.                                                  |
 | Admin and operations            |               10% | Operations entry point exists. RBAC screens, support, fraud, refunds, vendor/rider review and audit exports remain.                                                |
-| Security and privacy            |               28% | Baseline headers, checks and CI are present. Auth, server authorisation, RLS, secrets, rate limits, webhook verification and independent testing remain.           |
+| Security and privacy            |               38% | Headers, OTP adapter, pilot RLS schema, server-priced order RPC, tests and CI exist locally. Staging denial tests and independent testing remain.                  |
 | Reliability and operations      |               12% | Production build passes. Monitoring, backups, restore drill, SLOs, incident playbooks and live integrations remain.                                                |
-| Overall launch readiness        |           **25%** | Suitable for product demonstrations and the next build phase, not public trading.                                                                                  |
+| Overall launch readiness        |           **32%** | The Phase 2 candidate has a secure pilot foundation; the current live deployment remains about 25% and is not ready for public trading.                            |
 
 Readiness percentages are delivery estimates, not certifications. “100%” requires passed acceptance evidence, not only source code.
 
 The detailed comparison with the parent repository and live product is in [ONYN_REFERENCE_AUDIT.md](./ONYN_REFERENCE_AUDIT.md). Its conclusion is to reuse the parent brand and validated workflow ideas, but not inherit its backend or deployment posture without remediation.
+
+The Lovable deployment is reviewed in [LIVE_DEPLOYMENT_AUDIT.md](./LIVE_DEPLOYMENT_AUDIT.md).
 
 ## What competitors establish as the baseline
 

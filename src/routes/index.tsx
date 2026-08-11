@@ -29,6 +29,7 @@ import {
   Zap,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { isPilotBackendConfigured, requestPakistanOtp, verifyPakistanOtp } from "../lib/supabase";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -315,6 +316,13 @@ function OnynApp() {
   const [location, setLocation] = useState("Gulberg III, Lahore");
   const [favourites, setFavourites] = useState<string[]>([]);
   const [orderPlaced, setOrderPlaced] = useState(false);
+  const [phone, setPhone] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [pendingPhone, setPendingPhone] = useState("");
+  const [otpState, setOtpState] = useState<
+    "idle" | "sending" | "sent" | "verifying" | "verified" | "error"
+  >("idle");
+  const [otpMessage, setOtpMessage] = useState("");
 
   const filteredRestaurants = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -376,6 +384,34 @@ function OnynApp() {
     setFavourites((current) =>
       current.includes(id) ? current.filter((item) => item !== id) : [...current, id],
     );
+  }
+
+  async function sendOtp() {
+    if (otpState === "sending") return;
+    setOtpState("sending");
+    setOtpMessage("");
+    const result = await requestPakistanOtp(phone);
+    if (result.ok) {
+      setOtpState("sent");
+      setPendingPhone(result.phone);
+      setOtpMessage(`A secure code was sent to ${result.phone}.`);
+      return;
+    }
+    setOtpState("error");
+    setOtpMessage(result.message);
+  }
+
+  async function verifyOtpCode() {
+    if (otpState === "verifying") return;
+    setOtpState("verifying");
+    const result = await verifyPakistanOtp(pendingPhone, otpCode);
+    if (result.ok) {
+      setOtpState("verified");
+      setOtpMessage("Mobile number verified. You are securely signed in.");
+      return;
+    }
+    setOtpState("error");
+    setOtpMessage(result.message);
   }
 
   return (
@@ -566,6 +602,7 @@ function OnynApp() {
               <RestaurantGrid
                 items={restaurants.slice(0, 4)}
                 favourites={favourites}
+                fulfilment={fulfilment}
                 toggleFavourite={toggleFavourite}
                 openRestaurant={openRestaurant}
               />
@@ -665,6 +702,7 @@ function OnynApp() {
               <RestaurantGrid
                 items={filteredRestaurants}
                 favourites={favourites}
+                fulfilment={fulfilment}
                 toggleFavourite={toggleFavourite}
                 openRestaurant={openRestaurant}
               />
@@ -726,7 +764,10 @@ function OnynApp() {
                   <Clock3 size={17} /> {selectedRestaurant.eta}
                 </span>
                 <span>
-                  <Bike size={18} /> {money(selectedRestaurant.delivery)} delivery
+                  {fulfilment === "delivery" ? <Bike size={18} /> : <Store size={18} />}
+                  {fulfilment === "delivery"
+                    ? `${money(selectedRestaurant.delivery)} delivery`
+                    : "Collection available"}
                 </span>
                 <span>
                   <ShoppingBag size={17} /> Min. {money(selectedRestaurant.min)}
@@ -844,7 +885,11 @@ function OnynApp() {
                       </span>
                       <textarea
                         maxLength={160}
-                        placeholder="Gate, landmark or rider instructions"
+                        placeholder={
+                          fulfilment === "delivery"
+                            ? "Gate, landmark or rider instructions"
+                            : "Collection name or restaurant request"
+                        }
                       />
                     </label>
                   </div>
@@ -955,12 +1000,64 @@ function OnynApp() {
                     maxLength={10}
                     placeholder="3XX XXXXXXX"
                     aria-label="Pakistan mobile number"
+                    value={phone}
+                    onChange={(event) => {
+                      setPhone(event.target.value);
+                      if (otpState !== "idle") {
+                        setOtpState("idle");
+                        setOtpCode("");
+                        setPendingPhone("");
+                        setOtpMessage("");
+                      }
+                    }}
                   />
                 </div>
               </label>
-              <button type="button">
-                Send secure code <ArrowRight size={18} />
-              </button>
+              {!isPilotBackendConfigured() && (
+                <p className="demo-auth-notice">
+                  Demo mode: SMS sign-in is not connected in this deployment.
+                </p>
+              )}
+              {otpMessage && (
+                <p className={`auth-feedback ${otpState}`} role="status" aria-live="polite">
+                  {otpMessage}
+                </p>
+              )}
+              {(otpState === "sent" || otpState === "verifying" || otpState === "error") &&
+                pendingPhone && (
+                  <label className="otp-code-field">
+                    <span>Six-digit code</span>
+                    <input
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      maxLength={6}
+                      value={otpCode}
+                      onChange={(event) => setOtpCode(event.target.value.replace(/\D/g, ""))}
+                      aria-label="Six-digit verification code"
+                    />
+                  </label>
+                )}
+              {otpState !== "verified" && (
+                <button
+                  type="button"
+                  onClick={pendingPhone ? verifyOtpCode : sendOtp}
+                  disabled={otpState === "sending" || otpState === "verifying"}
+                >
+                  {otpState === "sending"
+                    ? "Sending…"
+                    : otpState === "verifying"
+                      ? "Verifying…"
+                      : pendingPhone
+                        ? "Verify code"
+                        : "Send secure code"}
+                  <ArrowRight size={18} />
+                </button>
+              )}
+              {otpState === "verified" && (
+                <button type="button" onClick={() => navigate("home")}>
+                  Continue to Onyn <Check size={18} />
+                </button>
+              )}
               <small>
                 By continuing you agree to Onyn's Terms and Privacy Notice. OTP rate limits and
                 device checks are required before launch.
@@ -1172,11 +1269,13 @@ function SearchBox({
 function RestaurantGrid({
   items,
   favourites,
+  fulfilment,
   toggleFavourite,
   openRestaurant,
 }: {
   items: Restaurant[];
   favourites: string[];
+  fulfilment: "delivery" | "collection";
   toggleFavourite: (id: string) => void;
   openRestaurant: (restaurant: Restaurant) => void;
 }) {
@@ -1218,7 +1317,8 @@ function RestaurantGrid({
                 <Clock3 size={14} /> {restaurant.eta}
               </span>
               <span>
-                <Bike size={15} /> {money(restaurant.delivery)}
+                {fulfilment === "delivery" ? <Bike size={15} /> : <Store size={15} />}
+                {fulfilment === "delivery" ? money(restaurant.delivery) : "Collection"}
               </span>
               <span>Min. {money(restaurant.min)}</span>
             </span>
