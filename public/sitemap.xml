@@ -5,4 +5,12 @@
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
+  <url><loc>https://food-fair-pakistan.lovable.app/about</loc><priority>0.7</priority></url>
+  <url><loc>https://food-fair-pakistan.lovable.app/help</loc><priority>0.8</priority></url>
+  <url><loc>https://food-fair-pakistan.lovable.app/partners</loc><priority>0.8</priority></url>
+  <url><loc>https://food-fair-pakistan.lovable.app/rider</loc><priority>0.8</priority></url>
+  <url><loc>https://food-fair-pakistan.lovable.app/safety</loc><priority>0.6</priority></url>
+  <url><loc>https://food-fair-pakistan.lovable.app/terms</loc><priority>0.5</priority></url>
+  <url><loc>https://food-fair-pakistan.lovable.app/privacy</loc><priority>0.5</priority></url>
+  <url><loc>https://food-fair-pakistan.lovable.app/refunds</loc><priority>0.6</priority></url>
 </urlset>

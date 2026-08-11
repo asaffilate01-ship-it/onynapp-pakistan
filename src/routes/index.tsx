@@ -323,26 +323,29 @@ const roleCards = [
     icon: Store,
     title: "Restaurant partner",
     detail: "Fixed monthly fee. Keep more of every order.",
-    action: "Open restaurant workspace",
-    href: "/vendor",
+    action: "Apply as a partner",
+    href: "/partners",
   },
   {
     icon: Bike,
     title: "Delivery rider",
     detail: "Flexible shifts, clear earnings and local zones.",
     action: "Ride with Onyn",
+    href: "/rider",
   },
   {
     icon: Users,
     title: "Sales partner",
     detail: "Earn commission onboarding quality local vendors.",
     action: "Become an agent",
+    href: "/partners",
   },
   {
     icon: PackageCheck,
     title: "Supplier partner",
     detail: "Supply verified restaurants with stock and simpler ordering.",
     action: "Join as a supplier",
+    href: "/partners",
   },
 ];
 
@@ -802,10 +805,14 @@ function OnynApp() {
             <button type="button" onClick={() => navigate("orders")}>
               Orders
             </button>
-            <button type="button" onClick={() => setRoleOpen(true)}>
+            <button type="button" onClick={() => window.location.assign("/partners")}>
               Partner with us
             </button>
-            <button className="sign-in-button" type="button" onClick={() => navigate("account")}>
+            <button
+              className="sign-in-button"
+              type="button"
+              onClick={() => window.location.assign("/account")}
+            >
               {customerId ? "Account" : "Sign in"}
             </button>
           </nav>
@@ -1656,37 +1663,20 @@ function OnynApp() {
             >
               Groceries roadmap
             </button>
-            <button type="button" disabled title="Support service must be staffed before launch">
-              Help centre (pre-launch)
-            </button>
+            <a href="/help">Help centre</a>
           </div>
           <div>
             <strong>Partners</strong>
-            <button onClick={() => setRoleOpen(true)} type="button">
-              Restaurants
-            </button>
-            <button onClick={() => setRoleOpen(true)} type="button">
-              Riders
-            </button>
-            <button onClick={() => setRoleOpen(true)} type="button">
-              Sales agents
-            </button>
+            <a href="/partners">Restaurants</a>
+            <a href="/rider">Riders</a>
+            <a href="/partners">Sales agents</a>
+            <a href="/vendor">Restaurant sign in</a>
           </div>
           <div>
             <strong>Legal</strong>
-            <button type="button" disabled title="Legal approval required before public launch">
-              Terms (drafting)
-            </button>
-            <button type="button" disabled title="Legal approval required before public launch">
-              Privacy (drafting)
-            </button>
-            <button
-              type="button"
-              disabled
-              title="Operations approval required before public launch"
-            >
-              Refunds (drafting)
-            </button>
+            <a href="/terms">Terms</a>
+            <a href="/privacy">Privacy</a>
+            <a href="/refunds">Cancellations and refunds</a>
           </div>
         </div>
         <div className="footer-bottom">
@@ -1721,7 +1711,7 @@ function OnynApp() {
           icon={UserRound}
           label="Account"
           active={view === "account"}
-          onClick={() => navigate("account")}
+          onClick={() => window.location.assign("/account")}
         />
       </nav>
 
@@ -1864,11 +1854,7 @@ function OnynApp() {
             <button
               type="button"
               className="admin-link"
-              onClick={() =>
-                setPartnerMessage(
-                  "The operations portal is private and available only to invited staff.",
-                )
-              }
+              onClick={() => window.location.assign("/ops")}
             >
               <Building2 /> Onyn operations sign-in
             </button>

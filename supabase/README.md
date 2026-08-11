@@ -30,3 +30,13 @@ Phase 3D adds `branch_hours`, `branch_closures`, menu option groups/options, imm
 3. Add option groups/options using a reviewed migration or an onboarding/admin tool; restaurant staff can then mark individual options available or sold out.
 4. In-app notifications work from database order events. `notification_outbox` is deliberately inaccessible to browser roles and still needs a trusted worker, SMS provider, retries, delivery receipts and alerting before SMS is live.
 5. Test overnight hours, closure boundaries and daylight-independent `Asia/Karachi` behaviour in staging.
+
+Phase 4A adds separately authorised platform operations, partner/rider applications, general support, manual delivery jobs, rider state transitions and audited vendor menu import. After applying `20260811190000_launch_control.sql`:
+
+1. Add platform staff only through a service-role/admin process. Never grant platform access by adding a restaurant membership. Example reviewed seed: `insert into public.platform_staff(user_id, role) values ('AUTH_USER_UUID', 'operations');`.
+2. Use separate test identities for customer, restaurant owner, kitchen, rider, support, operations and an unrelated user.
+3. Prove support staff cannot see partner/rider application PII and cannot approve or dispatch.
+4. Prove only approved riders can see and advance their assigned delivery jobs.
+5. Prove exact COD and a proof note are required before a delivery can complete.
+6. Keep CNIC/licence images out of public forms; connect an approved encrypted verification provider or restricted document workflow before rider activation.
+7. Menu CSV imports accept 1–200 simple rows and are atomic. Review item names, categories and prices before import.

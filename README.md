@@ -6,7 +6,7 @@ The commercial model is designed around a predictable monthly vendor subscriptio
 
 ## Current build
 
-This repository now contains a responsive, production-buildable Phase 3D pilot candidate:
+This repository now contains a responsive, production-buildable Phase 4A controlled-launch candidate:
 
 - Pakistan-localised restaurant and home-chef discovery
 - Onyn-branded Food, Grocery, Pharmacy and Courier service switcher with non-launch services clearly gated
@@ -41,8 +41,15 @@ This repository now contains a responsive, production-buildable Phase 3D pilot c
 - Protected restaurant access to delivery address, landmark and customer notes
 - Automated vendor state-machine, urgency and operational-metric tests
 - Server-side checkout rejection when a branch is closed, paused or an option becomes unavailable
+- Dedicated About, Help, Safety, Terms, Privacy and Cancellation/Refund routes
+- Protected customer account route with profile, verified addresses, orders and notifications
+- Protected support requests, customer case history and urgent safety triage
+- Restaurant, home-chef, sales-agent and supplier application workflow with review status
+- Lahore rider application, assigned-job, pickup, proof-of-delivery and exact-COD workflow
+- Separately authorised platform operations console for onboarding, support and manual dispatch
+- Owner/manager CSV menu import with validation, server transaction and audit record
 
-Without a configured Supabase staging project the marketplace and restaurant workspace remain visibly labelled demo data. With staging configured, Phase 3D can create and track server-priced COD orders. Every branch must save its seven-day schedule before it can receive orders. Online payments remain outside the pilot.
+Without a configured Supabase staging project the marketplace and restaurant workspace remain visibly labelled demo data and transactional routes stay disabled. With staging configured, Phase 4A can operate an invite-only Lahore COD workflow from customer order through restaurant preparation, manual dispatch and rider delivery. Every branch must save its seven-day schedule before it can receive orders. Online payments remain outside the pilot.
 
 ## Development
 

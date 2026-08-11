@@ -24,6 +24,7 @@ import {
   ShieldCheck,
   Store,
   TimerReset,
+  Upload,
   Wifi,
   WifiOff,
   X,
@@ -33,6 +34,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   getVendorWorkspaceContext,
   getVendorBranchSchedule,
+  importVendorMenu,
   isPilotBackendConfigured,
   listVendorBranchOrders,
   listVendorMenuItems,
@@ -64,6 +66,7 @@ import {
   mapVendorBackendOrder,
   type VendorMenuItem,
 } from "../lib/vendor-workspace";
+import { parseMenuCsv } from "../lib/launch";
 
 export const Route = createFileRoute("/vendor")({
   head: () => ({
@@ -222,6 +225,7 @@ function VendorWorkspace() {
   const [branchSchedule, setBranchSchedule] = useState<VendorBranchSchedule | null>(null);
   const [closureEndsAt, setClosureEndsAt] = useState("");
   const [closureReason, setClosureReason] = useState("");
+  const [menuCsv, setMenuCsv] = useState("");
   const [busyOrderId, setBusyOrderId] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
@@ -487,6 +491,26 @@ function VendorWorkspace() {
     }
   }
 
+  async function importMenu() {
+    const parsed = parseMenuCsv(menuCsv);
+    if (parsed.error) {
+      setFeedback(parsed.error);
+      return;
+    }
+    if (!workspaceContext || !canManageBranch) {
+      setFeedback("A live owner or manager session is required for menu import.");
+      return;
+    }
+    try {
+      const count = await importVendorMenu(workspaceContext.branch_id, parsed.rows);
+      setMenuCsv("");
+      setFeedback(`${count} menu item${count === 1 ? "" : "s"} imported with an audit record.`);
+      await loadLiveData(workspaceContext);
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "Menu import could not be completed.");
+    }
+  }
+
   async function handleSignOut() {
     try {
       await signOutVendorWorkspace();
@@ -661,6 +685,10 @@ function VendorWorkspace() {
             items={menuItems}
             onToggle={toggleMenuItem}
             onToggleOption={toggleMenuOption}
+            menuCsv={menuCsv}
+            setMenuCsv={setMenuCsv}
+            onImport={importMenu}
+            canImport={Boolean(workspaceContext && canManageBranch)}
           />
         )}
         {view === "reports" && <VendorReports orders={orders} metrics={metrics} />}
@@ -1251,10 +1279,18 @@ function MenuAvailability({
   items,
   onToggle,
   onToggleOption,
+  menuCsv,
+  setMenuCsv,
+  onImport,
+  canImport,
 }: {
   items: VendorMenuItem[];
   onToggle: (id: string) => Promise<void>;
   onToggleOption: (itemId: string, optionId: string) => Promise<void>;
+  menuCsv: string;
+  setMenuCsv: (value: string) => void;
+  onImport: () => Promise<void>;
+  canImport: boolean;
 }) {
   const [query, setQuery] = useState("");
   const filtered = items.filter((item) => item.name.toLowerCase().includes(query.toLowerCase()));
@@ -1269,7 +1305,35 @@ function MenuAvailability({
             Sold-out changes are immediate in this prototype and ready for the protected menu RPC.
           </p>
         </div>
-        <span className="settings-note">Menu creation and bulk import remain onboarding-only.</span>
+        <span className="settings-note">Owner/manager imports are validated and audited.</span>
+      </div>
+      <div className="menu-import-panel">
+        <div>
+          <Upload />
+          <span>
+            <strong>Paste menu CSV</strong>
+            <small>
+              Columns: name, category, price, description, available. Avoid commas inside fields.
+            </small>
+          </span>
+        </div>
+        <textarea
+          rows={5}
+          value={menuCsv}
+          onChange={(event) => setMenuCsv(event.target.value)}
+          placeholder={
+            "name,category,price,description,available\nChicken Karahi,Desi mains,899,Fresh karahi,true"
+          }
+          disabled={!canImport}
+        />
+        <button
+          type="button"
+          onClick={() => void onImport()}
+          disabled={!canImport || !menuCsv.trim()}
+        >
+          <Upload /> Validate and import menu
+        </button>
+        {!canImport && <p>Sign in as the live branch owner or manager to import.</p>}
       </div>
       <label className="vendor-search">
         <Search size={19} />
