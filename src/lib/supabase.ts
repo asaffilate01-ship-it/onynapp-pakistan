@@ -494,3 +494,269 @@ export function subscribeToVendorBranchOrders(branchId: string, onChange: () => 
     void supabase.removeChannel(channel);
   };
 }
+
+export type CustomerProfileSnapshot = {
+  profile: { display_name: string | null; phone_e164: string | null } | null;
+  addresses: Array<{
+    id: string;
+    label: string | null;
+    city: string;
+    address_line: string;
+    landmark: string;
+    delivery_note: string | null;
+  }>;
+};
+
+export async function getCustomerProfileSnapshot(): Promise<CustomerProfileSnapshot> {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error("Pilot backend is not configured.");
+  const { data, error } = await supabase.rpc("customer_profile_snapshot");
+  if (error) throw new Error("Your account details could not be loaded.");
+  return data as CustomerProfileSnapshot;
+}
+
+export async function updateCustomerProfile(displayName: string) {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error("Pilot backend is not configured.");
+  const { error } = await supabase.rpc("customer_update_profile", {
+    p_display_name: displayName.trim(),
+  });
+  if (error) throw new Error("Your account name could not be saved.");
+}
+
+export type SupportCase = {
+  id: string;
+  order_id: string | null;
+  category: string;
+  subject: string;
+  description: string;
+  status: "new" | "in_review" | "resolved" | "closed";
+  resolution_note: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export async function listCustomerSupportCases(): Promise<SupportCase[]> {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error("Pilot backend is not configured.");
+  const { data, error } = await supabase.rpc("customer_list_support_cases");
+  if (error) throw new Error("Your support requests could not be loaded.");
+  return (data ?? []) as SupportCase[];
+}
+
+export async function createCustomerSupportCase(input: {
+  orderId?: string | null;
+  category: string;
+  subject: string;
+  description: string;
+}) {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error("Pilot backend is not configured.");
+  const { data, error } = await supabase.rpc("customer_create_support_case", {
+    p_order_id: input.orderId ?? null,
+    p_category: input.category,
+    p_subject: input.subject.trim(),
+    p_description: input.description.trim(),
+  });
+  if (error) throw new Error("Your support request could not be submitted.");
+  return data as SupportCase;
+}
+
+export type PartnerApplication = {
+  id: string;
+  application_type: "restaurant" | "home_chef" | "sales_agent" | "supplier";
+  trading_name: string;
+  city: string;
+  area: string;
+  contact_name: string;
+  phone_e164: string;
+  email: string | null;
+  details: string | null;
+  status: "submitted" | "in_review" | "approved" | "rejected" | "withdrawn";
+  review_note: string | null;
+  created_at: string;
+};
+
+export async function submitPartnerApplication(input: {
+  applicationType: string;
+  tradingName: string;
+  city: string;
+  area: string;
+  contactName: string;
+  phoneE164: string;
+  email?: string;
+  details?: string;
+}) {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error("Pilot backend is not configured.");
+  const { data, error } = await supabase.rpc("submit_partner_application", {
+    p_application_type: input.applicationType,
+    p_trading_name: input.tradingName.trim(),
+    p_city: input.city,
+    p_area: input.area.trim(),
+    p_contact_name: input.contactName.trim(),
+    p_phone_e164: input.phoneE164,
+    p_email: input.email?.trim() || null,
+    p_details: input.details?.trim() || null,
+  });
+  if (error)
+    throw new Error(
+      error.message.includes("already exists")
+        ? error.message
+        : "The application could not be submitted.",
+    );
+  return data as PartnerApplication;
+}
+
+export async function listOwnPartnerApplications(): Promise<PartnerApplication[]> {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error("Pilot backend is not configured.");
+  const { data, error } = await supabase.rpc("list_own_partner_applications");
+  if (error) throw new Error("Your applications could not be loaded.");
+  return (data ?? []) as PartnerApplication[];
+}
+
+export type RiderJob = {
+  id: string;
+  order_id: string;
+  reference: string;
+  status: string;
+  cash_to_collect_paisa: number;
+  restaurant: string;
+  pickup_address: string;
+  delivery_address: string | null;
+  landmark: string | null;
+  delivery_note: string | null;
+  created_at: string;
+};
+
+export type RiderWorkspaceSnapshot = {
+  application: null | {
+    id: string;
+    full_name: string;
+    phone_e164: string;
+    area: string;
+    vehicle_type: string;
+    has_valid_licence: boolean;
+    status: string;
+    review_note: string | null;
+  };
+  jobs: RiderJob[];
+};
+
+export async function submitRiderApplication(input: {
+  fullName: string;
+  phoneE164: string;
+  area: string;
+  vehicleType: string;
+  hasValidLicence: boolean;
+}) {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error("Pilot backend is not configured.");
+  const { data, error } = await supabase.rpc("submit_rider_application", {
+    p_full_name: input.fullName.trim(),
+    p_phone_e164: input.phoneE164,
+    p_area: input.area.trim(),
+    p_vehicle_type: input.vehicleType,
+    p_has_valid_licence: input.hasValidLicence,
+  });
+  if (error) throw new Error("The rider application could not be submitted.");
+  return data;
+}
+
+export async function getRiderWorkspaceSnapshot(): Promise<RiderWorkspaceSnapshot> {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error("Pilot backend is not configured.");
+  const { data, error } = await supabase.rpc("rider_workspace_snapshot");
+  if (error) throw new Error("The rider workspace could not be loaded.");
+  return data as RiderWorkspaceSnapshot;
+}
+
+export async function transitionRiderJob(input: {
+  jobId: string;
+  expected: string;
+  next: string;
+  proofNote?: string;
+  cashCollectedPaisa?: number | null;
+}) {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error("Pilot backend is not configured.");
+  const { error } = await supabase.rpc("rider_transition_delivery_job", {
+    p_job_id: input.jobId,
+    p_expected: input.expected,
+    p_next: input.next,
+    p_proof_note: input.proofNote?.trim() || null,
+    p_cash_collected_paisa: input.cashCollectedPaisa ?? null,
+  });
+  if (error) throw new Error("The delivery status could not be changed safely.");
+}
+
+export type OpsLaunchSnapshot = {
+  staff_role: "support" | "operations" | "admin";
+  partner_applications: Array<Record<string, unknown>>;
+  rider_applications: Array<Record<string, unknown>>;
+  support_cases: Array<Record<string, unknown>>;
+  delivery_jobs: Array<Record<string, unknown>>;
+  ready_delivery_orders: Array<Record<string, unknown>>;
+};
+
+export async function getOpsLaunchSnapshot(): Promise<OpsLaunchSnapshot> {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error("Pilot backend is not configured.");
+  const { data, error } = await supabase.rpc("ops_launch_snapshot");
+  if (error) throw new Error("Operations access could not be verified.");
+  return data as OpsLaunchSnapshot;
+}
+
+export async function reviewOpsApplication(input: {
+  kind: "partner" | "rider";
+  applicationId: string;
+  status: string;
+  note?: string;
+}) {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error("Pilot backend is not configured.");
+  const { error } = await supabase.rpc("ops_review_application", {
+    p_kind: input.kind,
+    p_application_id: input.applicationId,
+    p_status: input.status,
+    p_note: input.note?.trim() || null,
+  });
+  if (error) throw new Error("The application review could not be saved.");
+}
+
+export async function updateOpsSupportCase(input: {
+  caseId: string;
+  status: string;
+  resolutionNote?: string;
+}) {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error("Pilot backend is not configured.");
+  const { error } = await supabase.rpc("ops_update_support_case", {
+    p_case_id: input.caseId,
+    p_status: input.status,
+    p_resolution_note: input.resolutionNote?.trim() || null,
+  });
+  if (error) throw new Error("The support case could not be updated.");
+}
+
+export async function assignOpsDelivery(orderId: string, riderId: string) {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error("Pilot backend is not configured.");
+  const { error } = await supabase.rpc("ops_assign_delivery", {
+    p_order_id: orderId,
+    p_rider_id: riderId,
+  });
+  if (error) throw new Error("The delivery could not be assigned.");
+}
+
+export async function importVendorMenu(branchId: string, items: Array<Record<string, unknown>>) {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error("Pilot backend is not configured.");
+  const { data, error } = await supabase.rpc("vendor_import_menu", {
+    p_branch_id: branchId,
+    p_items: items,
+  });
+  if (error) throw new Error("The menu import could not be completed safely.");
+  return Number(data ?? 0);
+}

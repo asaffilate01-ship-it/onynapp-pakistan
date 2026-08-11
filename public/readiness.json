@@ -1,6 +1,6 @@
 {
   "application": "onyn-pakistan",
-  "release": "phase-3c-candidate",
+  "release": "phase-4a-controlled-launch-candidate",
   "status": "staging-candidate",
   "live_ordering": "deployment-and-acceptance-required",
   "scope": "controlled-lahore-cod-pilot"

@@ -1,5 +1,8 @@
 User-agent: *
 Allow: /
 Disallow: /vendor
+Disallow: /ops
+Disallow: /account
+Disallow: /support
 
 Sitemap: https://food-fair-pakistan.lovable.app/sitemap.xml
