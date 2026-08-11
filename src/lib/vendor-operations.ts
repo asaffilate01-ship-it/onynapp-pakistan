@@ -76,7 +76,7 @@ export function getOrderUrgency(
   return "on-time";
 }
 
-export function vendorMetrics(orders: VendorOrder[]) {
+export function vendorMetrics(orders: VendorOrder[], now = Date.now()) {
   const active = orders.filter((order) => !["completed", "rejected"].includes(order.status));
   const accepted = orders.filter((order) =>
     ["accepted", "preparing", "ready", "completed"].includes(order.status),
@@ -90,7 +90,7 @@ export function vendorMetrics(orders: VendorOrder[]) {
     newOrders: active.filter((order) => order.status === "placed").length,
     cooking: active.filter((order) => ["accepted", "preparing"].includes(order.status)).length,
     ready: active.filter((order) => order.status === "ready").length,
-    late: active.filter((order) => getOrderUrgency(order) === "late").length,
+    late: active.filter((order) => getOrderUrgency(order, now) === "late").length,
     acceptanceRate: decided === 0 ? 0 : Math.round((accepted / decided) * 100),
     codOutstanding,
   };

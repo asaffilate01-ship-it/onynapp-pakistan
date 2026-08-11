@@ -16,18 +16,18 @@ The parent is a broad multi-role product. Its route tree includes customer order
 
 The next Pakistan build deliberately selects the operational core required to make the existing customer prototype fulfilable.
 
-| Parent pattern                                     | Pakistan adaptation                                                              | Built in this phase                      | Remaining acceptance evidence                                           |
-| -------------------------------------------------- | -------------------------------------------------------------------------------- | ---------------------------------------- | ----------------------------------------------------------------------- |
-| Vendor sidebar with grouped operations             | Compact Orders, Kitchen, Menu, Reports and More; mobile bottom navigation        | Yes                                      | Authenticated role usability test with owner, manager and kitchen users |
-| Live incoming order count and notifications        | Visible new-order count, live summary and safe demo/backend state                | UI and adapter                           | SMS/push provider delivery evidence and audible alert device test       |
-| Order statuses: placed, accepted, preparing, ready | Same server-controlled state path plus completion hand-off                       | UI, pure state machine and protected RPC | Staging end-to-end test using real branch/member records                |
-| Accept/reject and ETA handling                     | Rejection requires an audit reason; busy mode changes the displayed prep default | Yes                                      | Customer ETA-consent and cancellation policy workflow                   |
-| KDS kanban, urgency and item bumping               | New/Cooking/Ready board, station labels, item bumping and large touch targets    | Yes                                      | Tablet, printer and kitchen-network rehearsal                           |
-| Menu availability                                  | Immediate sold-out/available control backed by a protected RPC                   | Yes                                      | Real menu load, modifiers, bulk import and cross-device update test     |
-| Vendor revenue summaries                           | Order value and COD exposure are separated; gross value is not labelled earnings | Yes                                      | Settled payment/refund/delivery-cost reconciliation                     |
-| Auto-pause and prep-time settings                  | Accepting-orders, busy mode, prep time and order-capacity schema                 | UI and protected RPC                     | Automatic threshold worker and customer-facing availability test        |
-| POS, tables, inventory, staff and shifts           | Kept out of the primary pilot navigation until core orders are proven            | Planned                                  | Phase 4 scope and hardware/vendor selection                             |
-| Aggregator consolidation                           | Not copied into the launch pilot                                                 | Later                                    | Commercial API agreements and duplicate/order ownership rules           |
+| Parent pattern                                     | Pakistan adaptation                                                              | Built in this phase                            | Remaining acceptance evidence                                     |
+| -------------------------------------------------- | -------------------------------------------------------------------------------- | ---------------------------------------------- | ----------------------------------------------------------------- |
+| Vendor sidebar with grouped operations             | Compact Orders, Kitchen, Menu, Reports and More; mobile bottom navigation        | Yes; settings hidden from kitchen users        | Staging role usability test with owner, manager and kitchen users |
+| Live incoming order count and notifications        | Visible new-order count, live summary and safe demo/backend state                | UI and adapter                                 | SMS/push provider delivery evidence and audible alert device test |
+| Order statuses: placed, accepted, preparing, ready | Same server-controlled state path plus completion hand-off                       | UI, pure state machine and role-restricted RPC | Staging end-to-end test using real branch/member records          |
+| Accept/reject and ETA handling                     | Rejection requires an audit reason; busy mode changes the displayed prep default | Yes                                            | Customer ETA-consent and cancellation policy workflow             |
+| KDS kanban, urgency and item bumping               | New/Cooking/Ready board, station labels, item bumping and large touch targets    | Yes                                            | Tablet, printer and kitchen-network rehearsal                     |
+| Menu availability                                  | Immediate sold-out/available control backed by a protected RPC                   | Live loading and mutation wired                | Modifiers, categories, bulk import and cross-device staging test  |
+| Vendor revenue summaries                           | Order value and COD exposure are separated; gross value is not labelled earnings | Yes                                            | Settled payment/refund/delivery-cost reconciliation               |
+| Auto-pause and prep-time settings                  | Accepting-orders, busy mode, prep time and order-capacity schema                 | UI and protected RPC                           | Automatic threshold worker and customer-facing availability test  |
+| POS, tables, inventory, staff and shifts           | Kept out of the primary pilot navigation until core orders are proven            | Planned                                        | Phase 4 scope and hardware/vendor selection                       |
+| Aggregator consolidation                           | Not copied into the launch pilot                                                 | Later                                          | Commercial API agreements and duplicate/order ownership rules     |
 
 ## Security decisions that differ from the parent
 
@@ -56,14 +56,22 @@ The repository still requires staging RLS denial tests, rate-limited OTP deliver
 - Protected Supabase operations and realtime/list adapters
 - Tested vendor state machine and urgency/metrics logic
 
-### Phase 3B — next build
+### Phase 3B — completed in this candidate
 
-- Authenticated owner/manager/kitchen route guards and branch selector
-- Real branch, menu and order loading instead of demo fixtures
-- Customer status subscription and vendor/customer notifications
+- SMS OTP sign-in and authenticated owner/manager/kitchen membership guard
+- Real branch, menu and active-order loading with protected address/landmark access
+- Realtime vendor order refresh and live operational mutations
+- Manager-only new-order approval and branch operations; kitchen-scoped preparation controls
+- Lahore pilot serviceability, required delivery address and landmark validation
+- Honest coming-soon handling for other cities, partner portals and legal/support content
+
+### Phase 3C — next build before the controlled pilot
+
+- Customer status subscription plus SMS/push vendor and customer notifications
 - Modifier groups, opening hours, holiday mode and menu import
-- Pilot support/cancellation console and order timeline
-- Staging RLS denial and concurrency/idempotency tests
+- Pilot support/cancellation console and append-only order timeline
+- Staging RLS denial, role matrix, concurrency and idempotency tests
+- Seeded staging branch onboarding with no real customer data
 
 ### Phase 4 — controlled fulfilment and money
 
