@@ -6,7 +6,7 @@ The commercial model is designed around a predictable monthly vendor subscriptio
 
 ## Current build
 
-This repository now contains a responsive, production-buildable Phase 2 pilot candidate:
+This repository now contains a responsive, production-buildable Phase 3A pilot candidate:
 
 - Pakistan-localised restaurant and home-chef discovery
 - Onyn-branded Food, Grocery, Pharmacy and Courier service switcher with non-launch services clearly gated
@@ -23,6 +23,12 @@ This repository now contains a responsive, production-buildable Phase 2 pilot ca
 - Secure Supabase pilot schema with RLS, server-priced idempotent COD ordering and vendor transitions
 - SMS OTP send/verify adapter that stays visibly disabled until Supabase is configured
 - Automated Pakistan phone and trusted-price calculation tests
+- Separate responsive restaurant workspace at `/vendor`
+- Functional incoming-order board and kitchen display with controlled status transitions
+- Required rejection reasons, urgency indicators, COD exposure and customer landmark/notes
+- Busy mode, accepting-orders, preparation-time and menu sold-out controls
+- Protected branch/menu/order operations, audit events and vendor realtime/list adapters
+- Automated vendor state-machine, urgency and operational-metric tests
 
 All restaurant, menu, order and pricing records in Phase 1 are labelled demo data. The application does not yet process a real order or payment.
 
@@ -43,7 +49,7 @@ npm run check
 
 ## Product and launch status
 
-See [docs/PRODUCTION_READINESS.md](docs/PRODUCTION_READINESS.md) for the go-live plan, [docs/ONYN_REFERENCE_AUDIT.md](docs/ONYN_REFERENCE_AUDIT.md) for the parent comparison and [docs/LIVE_DEPLOYMENT_AUDIT.md](docs/LIVE_DEPLOYMENT_AUDIT.md) for the Lovable review.
+See [docs/PRODUCTION_READINESS.md](docs/PRODUCTION_READINESS.md) for the go-live plan, [docs/NEXT_PHASE_REFERENCE_MATRIX.md](docs/NEXT_PHASE_REFERENCE_MATRIX.md) for the current UK-to-Pakistan feature mapping, [docs/ONYN_REFERENCE_AUDIT.md](docs/ONYN_REFERENCE_AUDIT.md) for the parent comparison and [docs/LIVE_DEPLOYMENT_AUDIT.md](docs/LIVE_DEPLOYMENT_AUDIT.md) for the Lovable review.
 
 ## Pilot backend
 

@@ -130,3 +130,75 @@ export async function transitionVendorOrder({
   if (error) throw new Error("The order status changed or you are not authorised.");
   return data;
 }
+
+export async function setVendorBranchOperations({
+  branchId,
+  acceptingOrders,
+  busyMode,
+  defaultPrepMinutes,
+  activeOrderLimit,
+}: {
+  branchId: string;
+  acceptingOrders: boolean;
+  busyMode: boolean;
+  defaultPrepMinutes: number;
+  activeOrderLimit: number;
+}) {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error("Pilot backend is not configured.");
+
+  const { data, error } = await supabase.rpc("vendor_set_branch_operations", {
+    p_branch_id: branchId,
+    p_accepting_orders: acceptingOrders,
+    p_busy_mode: busyMode,
+    p_default_prep_minutes: defaultPrepMinutes,
+    p_active_order_limit: activeOrderLimit,
+  });
+  if (error) throw new Error("Branch settings could not be saved or you are not authorised.");
+  return data;
+}
+
+export async function setVendorMenuAvailability(menuItemId: string, available: boolean) {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error("Pilot backend is not configured.");
+
+  const { data, error } = await supabase.rpc("vendor_set_menu_availability", {
+    p_menu_item_id: menuItemId,
+    p_available: available,
+  });
+  if (error) throw new Error("Menu availability could not be changed or you are not authorised.");
+  return data;
+}
+
+export async function listVendorBranchOrders(branchId: string) {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error("Pilot backend is not configured.");
+
+  const { data, error } = await supabase
+    .from("orders")
+    .select("*, order_lines(*)")
+    .eq("branch_id", branchId)
+    .in("status", ["placed", "accepted", "preparing", "ready"])
+    .order("placed_at", { ascending: true })
+    .limit(100);
+  if (error) throw new Error("Live branch orders could not be loaded.");
+  return data ?? [];
+}
+
+export function subscribeToVendorBranchOrders(branchId: string, onChange: () => void) {
+  const supabase = getSupabaseClient();
+  if (!supabase) return () => undefined;
+
+  const channel = supabase
+    .channel(`vendor-orders-${branchId}`)
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "orders", filter: `branch_id=eq.${branchId}` },
+      onChange,
+    )
+    .subscribe();
+
+  return () => {
+    void supabase.removeChannel(channel);
+  };
+}
