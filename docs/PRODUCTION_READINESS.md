@@ -4,19 +4,19 @@ Updated: 11 August 2026
 
 ## Executive assessment
 
-The repository began as a blank TanStack/Lovable starter. The local Phase 3C package now contains a coherent customer marketplace, protected COD transaction path and restaurant operations pilot, but it still needs isolated staging acceptance before real public orders.
+The repository began as a blank TanStack/Lovable starter. The local Phase 3D package now contains a coherent customer marketplace, protected COD transaction path and restaurant operations pilot with hours, modifiers and in-app notifications, but it still needs isolated staging acceptance before real public orders.
 
-| Area                            | Current readiness | Evidence and remaining condition                                                                                                                                                                                                      |
-| ------------------------------- | ----------------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Customer UI/UX                  |               84% | Responsive discovery, service/fulfilment choice, menu, basket, checkout, honest live/demo states and protected tracking exist. Add modifiers, Urdu, accessibility and usability evidence.                                                |
-| Customer ordering functionality |               68% | Live catalog/address/COD/tracking/cancellation wiring exists with server pricing and serviceability. Staging evidence, modifiers, hours, notifications, refunds and rider fulfilment remain.                                                |
-| Restaurant/ePOS/KDS             |               50% | Responsive order board/KDS, SMS sign-in, membership guard, live branch/order/menu loading, realtime updates, protected transitions and role-aware controls exist. POS, printers and reconciliation remain.                            |
-| Rider and dispatch              |                8% | Rider entry point exists. Verification, availability, dispatch, navigation, proof of delivery, safety and earnings remain.                                                                                                            |
-| Sales-agent portal              |                8% | Agent proposition exists. Lead ownership, duplicate protection, onboarding evidence and commission ledger remain.                                                                                                                     |
-| Admin and operations            |               10% | Operations entry point exists. RBAC screens, support, fraud, refunds, vendor/rider review and audit exports remain.                                                                                                                   |
-| Security and privacy            |               60% | Headers, OTP, pilot RLS, server-priced orders, database serviceability, protected customer/vendor data, least-privilege transitions, audit records and CI tests exist locally. Staging denial and independent testing remain.          |
-| Reliability and operations      |               18% | Production build and route smoke checks pass; realtime wiring exists. Monitoring, backups, restore drill, SLOs, incident playbooks and live integration evidence remain.                                                              |
-| Overall launch readiness        |           **50%** | The local Phase 3C candidate closes the core customer-to-restaurant COD loop in source. The current live deployment remains behind this package, and public launch is blocked on staging, rider/support, legal and operational evidence. |
+| Area                            | Current readiness | Evidence and remaining condition                                                                                                                                                                                                                |
+| ------------------------------- | ----------------: | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Customer UI/UX                  |               88% | Responsive discovery, service/fulfilment choice, modifiers, menu, basket, checkout, notifications, honest live/demo states and protected tracking exist. Add Urdu, accessibility and usability evidence.                                        |
+| Customer ordering functionality |               76% | Live catalog/address/COD/tracking/cancellation, server pricing, serviceability, hours and modifier validation exist. Staging evidence, provider delivery, refunds and rider fulfilment remain.                                                  |
+| Restaurant/ePOS/KDS             |               58% | Order board/KDS, authenticated live loading, protected transitions, schedule/closure controls, branch capacity and option availability exist. Menu authoring/import, POS, printers and reconciliation remain.                                   |
+| Rider and dispatch              |                8% | Rider entry point exists. Verification, availability, dispatch, navigation, proof of delivery, safety and earnings remain.                                                                                                                      |
+| Sales-agent portal              |                8% | Agent proposition exists. Lead ownership, duplicate protection, onboarding evidence and commission ledger remain.                                                                                                                               |
+| Admin and operations            |               10% | Operations entry point exists. RBAC screens, support, fraud, refunds, vendor/rider review and audit exports remain.                                                                                                                             |
+| Security and privacy            |               64% | RLS, server-priced orders/options, database hours/serviceability, narrow role RPCs, protected notification state, audit records and CI tests exist locally. Staging denial and independent testing remain.                                      |
+| Reliability and operations      |               20% | Production build and route smoke checks pass; realtime and durable notification queue foundations exist. Monitoring, backups, restore drill, worker alerting, SLOs and incident playbooks remain.                                               |
+| Overall launch readiness        |           **56%** | The local Phase 3D candidate closes more COD race conditions and operating controls in source. The current live deployment remains behind this package, and public launch is blocked on staging, rider/support, legal and operational evidence. |
 
 Readiness percentages are delivery estimates, not certifications. “100%” requires passed acceptance evidence, not only source code.
 
@@ -149,7 +149,8 @@ Exit: 20 pilot vendors can complete real COD orders end-to-end in staging with n
 - Restaurant portal, order board, KDS, prep time, busy mode and sold-out controls — Phase 3A built
 - Authenticated owner/manager/kitchen access, live branch/menu/order loading and realtime refresh — Phase 3B candidate built
 - Customer live catalog, OTP-gated COD ordering, service-zone enforcement, tracking and cancellation — Phase 3C candidate built
-- Modifier groups, opening hours, holiday mode, menu import and customer notifications — remaining before pilot exit
+- Modifier selection, server pricing, opening hours, holiday mode and in-app customer notifications — Phase 3D candidate built
+- Menu authoring/import, trusted notification delivery worker and staffed support tooling — remaining before pilot exit
 - ePOS core, cash shifts, receipt/thermal printer path and reconciliation
 - Manual dispatch console and rider web/PWA workflow
 - Subscription billing, vendor statements and agent onboarding/commission ledger

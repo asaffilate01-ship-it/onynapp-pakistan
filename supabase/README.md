@@ -1,6 +1,6 @@
 # Supabase pilot backend
 
-The migrations create the minimum food-ordering pilot model, server-priced COD order RPC, branch-specific serviceability, protected customer tracking/cancellation, restaurant operations, audit/event records and row-level security.
+The migrations create the minimum food-ordering pilot model, server-priced COD order RPC, branch-specific serviceability and hours, protected customer tracking/cancellation/notifications, restaurant operations, menu modifiers, audit/event records and row-level security.
 
 Apply them in filename order to a new staging project:
 
@@ -22,3 +22,11 @@ The Phase 3 migrations add protected branch capacity settings, menu availability
 No production seed accounts or fixed passwords are included.
 
 Phase 3C also requires each delivery branch to have an active `service_zones` row. Use the area-only names `Gulberg III` and/or `DHA Phase 5`; the customer label's `, Lahore` suffix is normalised by the database. A configured backend with no active branch/menu data shows an honest empty state and never substitutes demo restaurants.
+
+Phase 3D adds `branch_hours`, `branch_closures`, menu option groups/options, immutable order option snapshots, customer notifications and a server-only delivery outbox. After applying `20260811170000_hours_modifiers_notifications.sql`:
+
+1. An owner or manager must save all seven Pakistan-time schedule rows in `/vendor` before opening the branch.
+2. Checkout will reject closed, paused and temporarily closed branches even if the customer loaded the menu earlier.
+3. Add option groups/options using a reviewed migration or an onboarding/admin tool; restaurant staff can then mark individual options available or sold out.
+4. In-app notifications work from database order events. `notification_outbox` is deliberately inaccessible to browser roles and still needs a trusted worker, SMS provider, retries, delivery receipts and alerting before SMS is live.
+5. Test overnight hours, closure boundaries and daylight-independent `Asia/Karachi` behaviour in staging.

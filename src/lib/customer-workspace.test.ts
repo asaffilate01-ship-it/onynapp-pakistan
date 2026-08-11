@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   canRequestCancellation,
+  configuredItemPrice,
   customerOrderProgress,
   mapCustomerOrders,
   mapMarketplaceCatalog,
+  optionSelectionError,
+  optionSelectionSignature,
 } from "./customer-workspace";
 
 describe("customer marketplace mapping", () => {
@@ -23,6 +26,8 @@ describe("customer marketplace mapping", () => {
           accepting_orders: true,
           default_prep_minutes: 25,
           busy_mode: false,
+          schedule_configured: true,
+          is_open: true,
         },
       ],
       [{ id: "cat-1", branch_id: "branch-1", name: "Pakistani" }],
@@ -37,6 +42,32 @@ describe("customer marketplace mapping", () => {
           available: false,
         },
       ],
+      [
+        {
+          id: "group-1",
+          menu_item_id: "item-1",
+          name: "Choose a size",
+          required: true,
+          min_selections: 1,
+          max_selections: 1,
+        },
+      ],
+      [
+        {
+          id: "option-1",
+          group_id: "group-1",
+          name: "Regular",
+          price_delta_paisa: 0,
+          available: true,
+        },
+        {
+          id: "option-2",
+          group_id: "group-1",
+          name: "Large",
+          price_delta_paisa: 30000,
+          available: true,
+        },
+      ],
     );
 
     expect(result.restaurants[0]).toMatchObject({
@@ -47,7 +78,17 @@ describe("customer marketplace mapping", () => {
       min: 500,
       acceptingOrders: true,
     });
-    expect(result.menu[0]).toMatchObject({ price: 1299, available: false, category: "Pakistani" });
+    expect(result.menu[0]).toMatchObject({
+      price: 1299,
+      available: false,
+      category: "Pakistani",
+    });
+    expect(optionSelectionError(result.menu[0], [])).toContain("Choose at least 1");
+    expect(optionSelectionError(result.menu[0], ["option-2"])).toBeNull();
+    expect(configuredItemPrice(result.menu[0], ["option-2"])).toBe(1599);
+    expect(optionSelectionSignature("item-1", ["option-2", "option-1"])).toBe(
+      "item-1:option-1,option-2",
+    );
   });
 });
 
@@ -72,6 +113,7 @@ describe("customer order mapping", () => {
             unit_price_paisa: 129900,
             quantity: 1,
             line_total_paisa: 129900,
+            options: [{ group_name: "Spice", option_name: "Medium", price_delta_paisa: 0 }],
           },
         ],
         order_events: [{ status: "preparing", note: null, created_at: "2026-08-11T10:05:00Z" }],
@@ -80,6 +122,7 @@ describe("customer order mapping", () => {
     ]);
 
     expect(orders[0]).toMatchObject({ total: 1573, status: "preparing" });
+    expect(orders[0].lines[0].options[0].optionName).toBe("Medium");
     expect(customerOrderProgress("preparing")).toBe(58);
     expect(canRequestCancellation("preparing")).toBe(true);
     expect(canRequestCancellation("delivered")).toBe(false);

@@ -6,6 +6,8 @@ import {
   type MarketplaceBranchRow,
   type MarketplaceCategoryRow,
   type MarketplaceMenuRow,
+  type MarketplaceOptionGroupRow,
+  type MarketplaceOptionRow,
 } from "./customer-workspace";
 import { newIdempotencyKey, normalizePakistanPhone, type Fulfilment } from "./pilot";
 
@@ -92,7 +94,7 @@ export type CodOrderInput = {
   branchId: string;
   addressId: string | null;
   fulfilment: Fulfilment;
-  items: Array<{ menuItemId: string; quantity: number }>;
+  items: Array<{ menuItemId: string; quantity: number; optionIds?: string[] }>;
   note?: string;
   idempotencyKey?: string;
 };
@@ -115,6 +117,7 @@ export async function createCodOrder(input: CodOrderInput): Promise<CreatedCodOr
     p_items: input.items.map((item) => ({
       menu_item_id: item.menuItemId,
       quantity: item.quantity,
+      option_ids: item.optionIds ?? [],
     })),
     p_note: input.note?.trim() || null,
     p_idempotency_key: input.idempotencyKey ?? newIdempotencyKey(),
@@ -140,45 +143,18 @@ export async function listMarketplaceCatalog(city = "Lahore") {
   const supabase = getSupabaseClient();
   if (!supabase) throw new Error("Pilot backend is not configured.");
 
-  const { data: branches, error: branchError } = await supabase
-    .from("branches")
-    .select(
-      "id, name, city, address_text, delivery_fee_paisa, service_fee_paisa, minimum_order_paisa, accepts_delivery, accepts_collection, accepting_orders, default_prep_minutes, busy_mode",
-    )
-    .eq("active", true)
-    .eq("city", city)
-    .order("name")
-    .limit(100);
-  if (branchError) throw new Error("The live restaurant list could not be loaded.");
-
-  const branchIds = (branches ?? []).map((branch) => branch.id as string);
-  if (branchIds.length === 0) return { restaurants: [], menu: [] };
-
-  const [categoriesResult, itemsResult] = await Promise.all([
-    supabase
-      .from("menu_categories")
-      .select("id, branch_id, name")
-      .in("branch_id", branchIds)
-      .eq("active", true)
-      .order("sort_order")
-      .limit(500),
-    supabase
-      .from("menu_items")
-      .select("id, branch_id, category_id, name, description, price_paisa, available")
-      .in("branch_id", branchIds)
-      .eq("active", true)
-      .order("name")
-      .limit(2000),
-  ]);
-
-  if (categoriesResult.error || itemsResult.error) {
-    throw new Error("The live menus could not be loaded.");
-  }
+  const { data, error } = await supabase.rpc("marketplace_catalog", { p_city: city });
+  if (error) throw new Error("The live restaurant and menu catalog could not be loaded.");
+  const catalog = (data ?? {}) as Record<string, unknown>;
 
   return mapMarketplaceCatalog(
-    (branches ?? []) as MarketplaceBranchRow[],
-    (categoriesResult.data ?? []) as MarketplaceCategoryRow[],
-    (itemsResult.data ?? []) as MarketplaceMenuRow[],
+    (Array.isArray(catalog.branches) ? catalog.branches : []) as MarketplaceBranchRow[],
+    (Array.isArray(catalog.categories) ? catalog.categories : []) as MarketplaceCategoryRow[],
+    (Array.isArray(catalog.items) ? catalog.items : []) as MarketplaceMenuRow[],
+    (Array.isArray(catalog.option_groups)
+      ? catalog.option_groups
+      : []) as MarketplaceOptionGroupRow[],
+    (Array.isArray(catalog.options) ? catalog.options : []) as MarketplaceOptionRow[],
   );
 }
 
@@ -252,6 +228,57 @@ export function subscribeToCustomerOrders(customerId: string, onChange: () => vo
   };
 }
 
+export type CustomerNotification = {
+  id: string;
+  order_id: string | null;
+  title: string;
+  body: string;
+  read_at: string | null;
+  created_at: string;
+};
+
+export async function listCustomerNotifications(): Promise<CustomerNotification[]> {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error("Pilot backend is not configured.");
+  const { data, error } = await supabase
+    .from("customer_notifications")
+    .select("id, order_id, title, body, read_at, created_at")
+    .order("created_at", { ascending: false })
+    .limit(50);
+  if (error) throw new Error("Order notifications could not be loaded.");
+  return (data ?? []) as CustomerNotification[];
+}
+
+export async function markCustomerNotificationRead(notificationId: string) {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error("Pilot backend is not configured.");
+  const { error } = await supabase.rpc("customer_mark_notification_read", {
+    p_notification_id: notificationId,
+  });
+  if (error) throw new Error("The notification could not be marked as read.");
+}
+
+export function subscribeToCustomerNotifications(customerId: string, onChange: () => void) {
+  const supabase = getSupabaseClient();
+  if (!supabase) return () => undefined;
+  const channel = supabase
+    .channel(`customer-notifications-${customerId}`)
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "customer_notifications",
+        filter: `user_id=eq.${customerId}`,
+      },
+      onChange,
+    )
+    .subscribe();
+  return () => {
+    void supabase.removeChannel(channel);
+  };
+}
+
 export async function transitionVendorOrder({
   orderId,
   expected,
@@ -315,6 +342,17 @@ export async function setVendorMenuAvailability(menuItemId: string, available: b
   return data;
 }
 
+export async function setVendorMenuOptionAvailability(optionId: string, available: boolean) {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error("Pilot backend is not configured.");
+  const { data, error } = await supabase.rpc("vendor_set_menu_option_availability", {
+    p_option_id: optionId,
+    p_available: available,
+  });
+  if (error) throw new Error("Option availability could not be changed or you are not authorised.");
+  return data;
+}
+
 export async function listVendorBranchOrders(branchId: string) {
   const supabase = getSupabaseClient();
   if (!supabase) throw new Error("Pilot backend is not configured.");
@@ -339,6 +377,61 @@ export type VendorWorkspaceContext = {
   default_prep_minutes: number;
   active_order_limit: number;
 };
+
+export type VendorDayHours = {
+  weekday: number;
+  opens_at: string;
+  closes_at: string;
+  closed: boolean;
+};
+
+export type VendorBranchSchedule = {
+  is_open: boolean;
+  hours: VendorDayHours[];
+  active_closure: {
+    id: string;
+    starts_at: string;
+    ends_at: string;
+    reason: string;
+  } | null;
+};
+
+export async function getVendorBranchSchedule(branchId: string): Promise<VendorBranchSchedule> {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error("Pilot backend is not configured.");
+  const { data, error } = await supabase.rpc("vendor_branch_schedule", {
+    p_branch_id: branchId,
+  });
+  if (error) throw new Error("Branch hours could not be loaded.");
+  return data as VendorBranchSchedule;
+}
+
+export async function setVendorWeeklyHours(branchId: string, hours: VendorDayHours[]) {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error("Pilot backend is not configured.");
+  const { data, error } = await supabase.rpc("vendor_set_weekly_hours", {
+    p_branch_id: branchId,
+    p_hours: hours,
+  });
+  if (error) throw new Error("Weekly opening hours could not be saved.");
+  return data as VendorBranchSchedule;
+}
+
+export async function setVendorTemporaryClosure(input: {
+  branchId: string;
+  endsAt: string | null;
+  reason?: string;
+}) {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error("Pilot backend is not configured.");
+  const { data, error } = await supabase.rpc("vendor_set_temporary_closure", {
+    p_branch_id: input.branchId,
+    p_ends_at: input.endsAt,
+    p_reason: input.reason?.trim() || null,
+  });
+  if (error) throw new Error("The temporary closure could not be saved.");
+  return data as VendorBranchSchedule;
+}
 
 export async function getVendorWorkspaceContext(): Promise<
   | { status: "signed_out" }
@@ -367,7 +460,9 @@ export async function listVendorMenuItems(branchId: string) {
 
   const { data, error } = await supabase
     .from("menu_items")
-    .select("id, name, price_paisa, available, category_id")
+    .select(
+      "id, name, price_paisa, available, category_id, menu_option_groups(id, name, required, min_selections, max_selections, menu_options(id, name, price_delta_paisa, available))",
+    )
     .eq("branch_id", branchId)
     .order("name")
     .limit(500);

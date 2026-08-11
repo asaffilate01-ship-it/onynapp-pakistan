@@ -6,7 +6,7 @@ The commercial model is designed around a predictable monthly vendor subscriptio
 
 ## Current build
 
-This repository now contains a responsive, production-buildable Phase 3C pilot candidate:
+This repository now contains a responsive, production-buildable Phase 3D pilot candidate:
 
 - Pakistan-localised restaurant and home-chef discovery
 - Onyn-branded Food, Grocery, Pharmacy and Courier service switcher with non-launch services clearly gated
@@ -14,10 +14,12 @@ This repository now contains a responsive, production-buildable Phase 3C pilot c
 - Controlled Gulberg III and DHA Phase 5 Lahore delivery areas; Islamabad and Karachi clearly marked coming soon
 - Search, cuisine filters, favourites and restaurant menus
 - Functional basket quantities and clear fee breakdown; vouchers remain explicitly deferred
+- Required and optional menu modifier selection with option-aware basket lines
 - Live catalog loading that never falls back to demo restaurants after a backend failure
 - Authenticated cash-on-delivery checkout using protected server prices and live menu IDs
 - Server-enforced, branch-specific Lahore service zones and reusable verified addresses
 - Protected customer order history, realtime status refresh and server totals
+- In-app order notifications with protected read state and an SMS delivery outbox foundation
 - Immediate pre-acceptance cancellation plus auditable support review after acceptance
 - Mobile navigation and responsive desktop/tablet/mobile layouts
 - Customer mobile OTP entry screen ready for a real authentication service
@@ -31,13 +33,16 @@ This repository now contains a responsive, production-buildable Phase 3C pilot c
 - Functional incoming-order board and kitchen display with controlled status transitions
 - Required rejection reasons, urgency indicators, COD exposure and customer landmark/notes
 - Busy mode, accepting-orders, preparation-time and menu sold-out controls
+- Pakistan-time weekly opening hours, overnight service, temporary closures and holiday controls
+- Restaurant modifier availability controls and server-snapshotted order options
 - Protected branch/menu/order operations, audit events and vendor realtime/list adapters
 - Authenticated restaurant SMS sign-in, active membership guard and real branch/menu/order loading
 - Manager-only new-order approval and branch settings with least-privilege kitchen controls
 - Protected restaurant access to delivery address, landmark and customer notes
 - Automated vendor state-machine, urgency and operational-metric tests
+- Server-side checkout rejection when a branch is closed, paused or an option becomes unavailable
 
-Without a configured Supabase staging project the marketplace and restaurant workspace remain visibly labelled demo data. With staging configured, Phase 3C can create and track server-priced COD orders; online payments remain outside the pilot.
+Without a configured Supabase staging project the marketplace and restaurant workspace remain visibly labelled demo data. With staging configured, Phase 3D can create and track server-priced COD orders. Every branch must save its seven-day schedule before it can receive orders. Online payments remain outside the pilot.
 
 ## Development
 

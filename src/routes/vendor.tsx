@@ -24,7 +24,6 @@ import {
   ShieldCheck,
   Store,
   TimerReset,
-  Utensils,
   Wifi,
   WifiOff,
   X,
@@ -33,17 +32,23 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   getVendorWorkspaceContext,
+  getVendorBranchSchedule,
   isPilotBackendConfigured,
   listVendorBranchOrders,
   listVendorMenuItems,
   requestPakistanOtp,
   setVendorBranchOperations,
+  setVendorTemporaryClosure,
+  setVendorWeeklyHours,
   setVendorMenuAvailability,
+  setVendorMenuOptionAvailability,
   signOutVendorWorkspace,
   subscribeToVendorBranchOrders,
   transitionVendorOrder,
   verifyPakistanOtp,
   type VendorWorkspaceContext,
+  type VendorBranchSchedule,
+  type VendorDayHours,
 } from "../lib/supabase";
 import {
   applyVendorTransition,
@@ -75,6 +80,14 @@ export const Route = createFileRoute("/vendor")({
 });
 
 type WorkspaceView = "orders" | "kds" | "menu" | "reports" | "settings";
+
+const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const defaultWeeklyHours: VendorDayHours[] = dayNames.map((_, weekday) => ({
+  weekday,
+  opens_at: "09:00",
+  closes_at: "23:00",
+  closed: false,
+}));
 
 const demoNow = Date.parse("2026-08-11T10:45:00.000Z");
 
@@ -144,11 +157,39 @@ const demoOrders: VendorOrder[] = [
 ];
 
 const demoMenu: VendorMenuItem[] = [
-  { id: "m-1", name: "Chicken Karahi", category: "Desi mains", price: 899, available: true },
-  { id: "m-2", name: "Malai Boti", category: "BBQ", price: 649, available: true },
-  { id: "m-3", name: "Double Smash Burger", category: "Burgers", price: 749, available: true },
-  { id: "m-4", name: "Mint Lemonade", category: "Drinks", price: 249, available: false },
-  { id: "m-5", name: "Aloo Keema Thali", category: "Home-style", price: 499, available: true },
+  {
+    id: "m-1",
+    name: "Chicken Karahi",
+    category: "Desi mains",
+    price: 899,
+    available: true,
+    optionGroups: [],
+  },
+  { id: "m-2", name: "Malai Boti", category: "BBQ", price: 649, available: true, optionGroups: [] },
+  {
+    id: "m-3",
+    name: "Double Smash Burger",
+    category: "Burgers",
+    price: 749,
+    available: true,
+    optionGroups: [],
+  },
+  {
+    id: "m-4",
+    name: "Mint Lemonade",
+    category: "Drinks",
+    price: 249,
+    available: false,
+    optionGroups: [],
+  },
+  {
+    id: "m-5",
+    name: "Aloo Keema Thali",
+    category: "Home-style",
+    price: 499,
+    available: true,
+    optionGroups: [],
+  },
 ];
 
 const navItems: Array<{ id: WorkspaceView; label: string; icon: typeof LayoutDashboard }> = [
@@ -177,6 +218,10 @@ function VendorWorkspace() {
   const [acceptingOrders, setAcceptingOrders] = useState(true);
   const [busyMode, setBusyMode] = useState(false);
   const [prepMinutes, setPrepMinutes] = useState(25);
+  const [weeklyHours, setWeeklyHours] = useState<VendorDayHours[]>(defaultWeeklyHours);
+  const [branchSchedule, setBranchSchedule] = useState<VendorBranchSchedule | null>(null);
+  const [closureEndsAt, setClosureEndsAt] = useState("");
+  const [closureReason, setClosureReason] = useState("");
   const [busyOrderId, setBusyOrderId] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
@@ -192,14 +237,21 @@ function VendorWorkspace() {
     : navItems.filter((item) => item.id !== "settings");
 
   const loadLiveData = useCallback(async (context: VendorWorkspaceContext) => {
-    const [orderRows, menuRows] = await Promise.all([
+    const [orderRows, menuRows, schedule] = await Promise.all([
       listVendorBranchOrders(context.branch_id),
       listVendorMenuItems(context.branch_id),
+      context.role === "kitchen"
+        ? Promise.resolve(null)
+        : getVendorBranchSchedule(context.branch_id),
     ]);
     setOrders(
       orderRows.map((row: unknown) => mapVendorBackendOrder(row, context.default_prep_minutes)),
     );
     setMenuItems(menuRows.map((row: unknown) => mapVendorBackendMenuItem(row)));
+    if (schedule) {
+      setBranchSchedule(schedule);
+      setWeeklyHours(schedule.hours.length === 7 ? schedule.hours : defaultWeeklyHours);
+    }
   }, []);
 
   const refreshAccess = useCallback(async () => {
@@ -328,6 +380,10 @@ function VendorWorkspace() {
   }
 
   async function toggleAcceptingOrders() {
+    if (!acceptingOrders && workspaceContext && (branchSchedule?.hours.length ?? 0) !== 7) {
+      setFeedback("Save all seven days of Pakistan operating hours before opening orders.");
+      return;
+    }
     try {
       await persistOperations({ nextAccepting: !acceptingOrders });
       setFeedback(acceptingOrders ? "New orders paused." : "The branch is accepting orders.");
@@ -345,6 +401,47 @@ function VendorWorkspace() {
     }
   }
 
+  async function saveWeeklySchedule() {
+    if (!workspaceContext) {
+      setWeeklyHours((hours) => [...hours]);
+      setFeedback("Demo schedule saved locally.");
+      return;
+    }
+    try {
+      const schedule = await setVendorWeeklyHours(workspaceContext.branch_id, weeklyHours);
+      setBranchSchedule(schedule);
+      setFeedback("All seven days of branch hours were saved.");
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "Opening hours could not be saved.");
+    }
+  }
+
+  async function updateTemporaryClosure(clear = false) {
+    if (!clear && (!closureEndsAt || closureReason.trim().length < 3)) {
+      setFeedback("Choose a reopening time and enter a closure reason.");
+      return;
+    }
+    if (!workspaceContext) {
+      setFeedback(clear ? "Demo closure cleared." : "Demo temporary closure scheduled.");
+      return;
+    }
+    try {
+      const schedule = await setVendorTemporaryClosure({
+        branchId: workspaceContext.branch_id,
+        endsAt: clear ? null : new Date(closureEndsAt).toISOString(),
+        reason: clear ? undefined : closureReason,
+      });
+      setBranchSchedule(schedule);
+      if (clear) {
+        setClosureEndsAt("");
+        setClosureReason("");
+      }
+      setFeedback(clear ? "Temporary closure cleared." : "Temporary closure is now active.");
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "Temporary closure could not be saved.");
+    }
+  }
+
   async function toggleMenuItem(id: string) {
     const item = menuItems.find((entry) => entry.id === id);
     if (!item) return;
@@ -356,6 +453,37 @@ function VendorWorkspace() {
       setFeedback(`${item.name} marked ${item.available ? "sold out" : "available"}.`);
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : "Menu availability could not change.");
+    }
+  }
+
+  async function toggleMenuOption(itemId: string, optionId: string) {
+    const item = menuItems.find((entry) => entry.id === itemId);
+    const option = item?.optionGroups
+      .flatMap((group) => group.options)
+      .find((entry) => entry.id === optionId);
+    if (!item || !option) return;
+    try {
+      if (accessState === "ready") {
+        await setVendorMenuOptionAvailability(optionId, !option.available);
+      }
+      setMenuItems((current) =>
+        current.map((menuItem) =>
+          menuItem.id !== itemId
+            ? menuItem
+            : {
+                ...menuItem,
+                optionGroups: menuItem.optionGroups.map((group) => ({
+                  ...group,
+                  options: group.options.map((entry) =>
+                    entry.id === optionId ? { ...entry, available: !entry.available } : entry,
+                  ),
+                })),
+              },
+        ),
+      );
+      setFeedback(`${option.name} marked ${option.available ? "unavailable" : "available"}.`);
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "Option availability could not change.");
     }
   }
 
@@ -528,7 +656,13 @@ function VendorWorkspace() {
             canAcceptOrders={canManageBranch}
           />
         )}
-        {view === "menu" && <MenuAvailability items={menuItems} onToggle={toggleMenuItem} />}
+        {view === "menu" && (
+          <MenuAvailability
+            items={menuItems}
+            onToggle={toggleMenuItem}
+            onToggleOption={toggleMenuOption}
+          />
+        )}
         {view === "reports" && <VendorReports orders={orders} metrics={metrics} />}
         {view === "settings" && (
           <OperationsSettings
@@ -537,6 +671,15 @@ function VendorWorkspace() {
             prepMinutes={prepMinutes}
             setPrepMinutes={setPrepMinutes}
             onSave={saveOperations}
+            weeklyHours={weeklyHours}
+            setWeeklyHours={setWeeklyHours}
+            branchSchedule={branchSchedule}
+            closureEndsAt={closureEndsAt}
+            setClosureEndsAt={setClosureEndsAt}
+            closureReason={closureReason}
+            setClosureReason={setClosureReason}
+            onSaveHours={saveWeeklySchedule}
+            onSetClosure={updateTemporaryClosure}
           />
         )}
       </main>
@@ -890,7 +1033,9 @@ function OrderCard({
       <ul>
         {order.lines.map((line) => (
           <li key={line.id}>
-            <b>{line.quantity}×</b> {line.name}
+            <span>
+              <b>{line.quantity}×</b> {line.name}
+            </span>
             {line.note && <small>{line.note}</small>}
           </li>
         ))}
@@ -1035,7 +1180,10 @@ function KitchenDisplay({
                             disabled={order.status !== "preparing"}
                           >
                             <span>
-                              <b>{line.quantity}×</b> {line.name}
+                              <span>
+                                <b>{line.quantity}×</b> {line.name}
+                              </span>
+                              {line.note && <small>{line.note}</small>}
                               <small>{line.station}</small>
                             </span>
                             {done && <Check size={18} />}
@@ -1102,9 +1250,11 @@ function KitchenDisplay({
 function MenuAvailability({
   items,
   onToggle,
+  onToggleOption,
 }: {
   items: VendorMenuItem[];
   onToggle: (id: string) => Promise<void>;
+  onToggleOption: (itemId: string, optionId: string) => Promise<void>;
 }) {
   const [query, setQuery] = useState("");
   const filtered = items.filter((item) => item.name.toLowerCase().includes(query.toLowerCase()));
@@ -1119,9 +1269,7 @@ function MenuAvailability({
             Sold-out changes are immediate in this prototype and ready for the protected menu RPC.
           </p>
         </div>
-        <button type="button" className="primary-action">
-          <Utensils size={18} /> Add item
-        </button>
+        <span className="settings-note">Menu creation and bulk import remain onboarding-only.</span>
       </div>
       <label className="vendor-search">
         <Search size={19} />
@@ -1146,6 +1294,26 @@ function MenuAvailability({
               <span>
                 <strong>{item.name}</strong>
                 <small>{item.category}</small>
+                {item.optionGroups.map((group) => (
+                  <span className="menu-option-group" key={group.id}>
+                    <b>
+                      {group.name}
+                      {group.required ? " · required" : ""}
+                    </b>
+                    {group.options.map((option) => (
+                      <button
+                        type="button"
+                        key={option.id}
+                        className={option.available ? "available" : "sold-out"}
+                        onClick={() => void onToggleOption(item.id, option.id)}
+                      >
+                        {option.name}
+                        {option.priceDelta !== 0 &&
+                          ` ${option.priceDelta > 0 ? "+" : "−"}Rs. ${Math.abs(option.priceDelta)}`}
+                      </button>
+                    ))}
+                  </span>
+                ))}
               </span>
             </span>
             <strong>Rs. {item.price.toLocaleString("en-PK")}</strong>
@@ -1225,12 +1393,30 @@ function OperationsSettings({
   prepMinutes,
   setPrepMinutes,
   onSave,
+  weeklyHours,
+  setWeeklyHours,
+  branchSchedule,
+  closureEndsAt,
+  setClosureEndsAt,
+  closureReason,
+  setClosureReason,
+  onSaveHours,
+  onSetClosure,
 }: {
   acceptingOrders: boolean;
   setAcceptingOrders: React.Dispatch<React.SetStateAction<boolean>>;
   prepMinutes: number;
   setPrepMinutes: React.Dispatch<React.SetStateAction<number>>;
   onSave: () => Promise<void>;
+  weeklyHours: VendorDayHours[];
+  setWeeklyHours: React.Dispatch<React.SetStateAction<VendorDayHours[]>>;
+  branchSchedule: VendorBranchSchedule | null;
+  closureEndsAt: string;
+  setClosureEndsAt: React.Dispatch<React.SetStateAction<string>>;
+  closureReason: string;
+  setClosureReason: React.Dispatch<React.SetStateAction<string>>;
+  onSaveHours: () => Promise<void>;
+  onSetClosure: (clear?: boolean) => Promise<void>;
 }) {
   return (
     <section className="settings-workspace">
@@ -1295,6 +1481,131 @@ function OperationsSettings({
       <button type="button" className="save-settings" onClick={onSave}>
         <Check size={18} /> Save operating settings
       </button>
+
+      <section className="schedule-settings" aria-labelledby="weekly-hours-heading">
+        <div className="workspace-section-header">
+          <div>
+            <span className="section-kicker">CUSTOMER AVAILABILITY</span>
+            <h2 id="weekly-hours-heading">Weekly opening hours</h2>
+            <p>
+              Checkout is blocked outside these Asia/Karachi times. All seven days are required.
+            </p>
+          </div>
+          <span className={`schedule-state ${branchSchedule?.is_open ? "open" : "closed"}`}>
+            <Clock3 size={16} /> {branchSchedule?.is_open ? "Open now" : "Closed now"}
+          </span>
+        </div>
+        <div className="weekly-hours-grid">
+          {weeklyHours.map((day) => (
+            <article key={day.weekday}>
+              <strong>{dayNames[day.weekday]}</strong>
+              <label className="day-closed-toggle">
+                <input
+                  type="checkbox"
+                  checked={day.closed}
+                  onChange={(event) =>
+                    setWeeklyHours((current) =>
+                      current.map((item) =>
+                        item.weekday === day.weekday
+                          ? { ...item, closed: event.target.checked }
+                          : item,
+                      ),
+                    )
+                  }
+                />
+                Closed
+              </label>
+              <label>
+                <span>Opens</span>
+                <input
+                  type="time"
+                  value={day.opens_at.slice(0, 5)}
+                  disabled={day.closed}
+                  onChange={(event) =>
+                    setWeeklyHours((current) =>
+                      current.map((item) =>
+                        item.weekday === day.weekday
+                          ? { ...item, opens_at: event.target.value }
+                          : item,
+                      ),
+                    )
+                  }
+                />
+              </label>
+              <label>
+                <span>Closes</span>
+                <input
+                  type="time"
+                  value={day.closes_at.slice(0, 5)}
+                  disabled={day.closed}
+                  onChange={(event) =>
+                    setWeeklyHours((current) =>
+                      current.map((item) =>
+                        item.weekday === day.weekday
+                          ? { ...item, closes_at: event.target.value }
+                          : item,
+                      ),
+                    )
+                  }
+                />
+              </label>
+            </article>
+          ))}
+        </div>
+        <button type="button" className="save-settings" onClick={() => void onSaveHours()}>
+          <Check size={18} /> Save all opening hours
+        </button>
+      </section>
+
+      <section className="temporary-closure" aria-labelledby="closure-heading">
+        <div>
+          <span className="section-kicker">HOLIDAY OR EMERGENCY</span>
+          <h2 id="closure-heading">Temporary closure</h2>
+          <p>Close checkout immediately without deleting the normal weekly schedule.</p>
+        </div>
+        {branchSchedule?.active_closure ? (
+          <div className="active-closure">
+            <PauseCircle />
+            <span>
+              <strong>{branchSchedule.active_closure.reason}</strong>
+              <small>
+                Reopens{" "}
+                {new Intl.DateTimeFormat("en-PK", {
+                  dateStyle: "medium",
+                  timeStyle: "short",
+                  timeZone: "Asia/Karachi",
+                }).format(new Date(branchSchedule.active_closure.ends_at))}
+              </small>
+            </span>
+            <button type="button" onClick={() => void onSetClosure(true)}>
+              Clear closure
+            </button>
+          </div>
+        ) : (
+          <div className="closure-fields">
+            <label>
+              <span>Reopen at</span>
+              <input
+                type="datetime-local"
+                value={closureEndsAt}
+                onChange={(event) => setClosureEndsAt(event.target.value)}
+              />
+            </label>
+            <label>
+              <span>Reason</span>
+              <input
+                value={closureReason}
+                maxLength={160}
+                onChange={(event) => setClosureReason(event.target.value)}
+                placeholder="Public holiday or kitchen maintenance"
+              />
+            </label>
+            <button type="button" onClick={() => void onSetClosure(false)}>
+              Close temporarily
+            </button>
+          </div>
+        )}
+      </section>
     </section>
   );
 }

@@ -11,6 +11,8 @@ export type MarketplaceBranchRow = {
   accepting_orders: boolean;
   default_prep_minutes?: number | null;
   busy_mode?: boolean | null;
+  schedule_configured?: boolean | null;
+  is_open?: boolean | null;
 };
 
 export type MarketplaceCategoryRow = {
@@ -29,6 +31,39 @@ export type MarketplaceMenuRow = {
   available: boolean;
 };
 
+export type MarketplaceOptionGroupRow = {
+  id: string;
+  menu_item_id: string;
+  name: string;
+  required: boolean;
+  min_selections: number;
+  max_selections: number;
+};
+
+export type MarketplaceOptionRow = {
+  id: string;
+  group_id: string;
+  name: string;
+  price_delta_paisa: number;
+  available: boolean;
+};
+
+export type CustomerMenuOption = {
+  id: string;
+  name: string;
+  priceDelta: number;
+  available: boolean;
+};
+
+export type CustomerOptionGroup = {
+  id: string;
+  name: string;
+  required: boolean;
+  minSelections: number;
+  maxSelections: number;
+  options: CustomerMenuOption[];
+};
+
 export type CustomerRestaurant = {
   id: string;
   name: string;
@@ -45,6 +80,8 @@ export type CustomerRestaurant = {
   acceptingOrders: boolean;
   acceptsDelivery: boolean;
   acceptsCollection: boolean;
+  openNow: boolean;
+  scheduleConfigured: boolean;
   isLive: true;
 };
 
@@ -57,6 +94,7 @@ export type CustomerMenuItem = {
   emoji: string;
   available: boolean;
   category: string;
+  optionGroups: CustomerOptionGroup[];
   isLive: true;
 };
 
@@ -66,6 +104,7 @@ export type CustomerOrderLine = {
   unitPrice: number;
   quantity: number;
   lineTotal: number;
+  options: Array<{ groupName: string; optionName: string; priceDelta: number }>;
 };
 
 export type CustomerOrderEvent = {
@@ -112,9 +151,37 @@ export function mapMarketplaceCatalog(
   branches: MarketplaceBranchRow[],
   categories: MarketplaceCategoryRow[],
   items: MarketplaceMenuRow[],
+  optionGroups: MarketplaceOptionGroupRow[] = [],
+  options: MarketplaceOptionRow[] = [],
 ): { restaurants: CustomerRestaurant[]; menu: CustomerMenuItem[] } {
   const categoryById = new Map(categories.map((category) => [category.id, category]));
   const categoriesByBranch = new Map<string, string[]>();
+  const optionsByGroup = new Map<string, CustomerMenuOption[]>();
+  const groupsByItem = new Map<string, CustomerOptionGroup[]>();
+
+  for (const option of options) {
+    const current = optionsByGroup.get(option.group_id) ?? [];
+    current.push({
+      id: option.id,
+      name: option.name,
+      priceDelta: paisaToRupees(option.price_delta_paisa),
+      available: option.available,
+    });
+    optionsByGroup.set(option.group_id, current);
+  }
+
+  for (const group of optionGroups) {
+    const current = groupsByItem.get(group.menu_item_id) ?? [];
+    current.push({
+      id: group.id,
+      name: group.name,
+      required: group.required,
+      minSelections: group.min_selections,
+      maxSelections: group.max_selections,
+      options: optionsByGroup.get(group.id) ?? [],
+    });
+    groupsByItem.set(group.menu_item_id, current);
+  }
 
   for (const category of categories) {
     const current = categoriesByBranch.get(category.branch_id) ?? [];
@@ -139,9 +206,11 @@ export function mapMarketplaceCatalog(
       emoji: theme[0],
       gradient: theme[1],
       tags: ["Verified pilot partner", ...categoryNames.slice(0, 2)],
-      acceptingOrders: branch.accepting_orders,
+      acceptingOrders: branch.accepting_orders && branch.is_open !== false,
       acceptsDelivery: branch.accepts_delivery,
       acceptsCollection: branch.accepts_collection,
+      openNow: branch.is_open !== false,
+      scheduleConfigured: branch.schedule_configured !== false,
       isLive: true as const,
     };
   });
@@ -158,6 +227,7 @@ export function mapMarketplaceCatalog(
       emoji: theme[0],
       available: item.available,
       category: category || "Menu",
+      optionGroups: groupsByItem.get(item.id) ?? [],
       isLive: true as const,
     };
   });
@@ -182,6 +252,11 @@ type CustomerOrderRow = {
     unit_price_paisa: number;
     quantity: number;
     line_total_paisa: number;
+    options?: Array<{
+      group_name: string;
+      option_name: string;
+      price_delta_paisa: number;
+    }> | null;
   }> | null;
   order_events?: Array<{ status: string; note: string | null; created_at: string }> | null;
   open_support_case_id?: string | null;
@@ -205,6 +280,11 @@ export function mapCustomerOrders(rows: CustomerOrderRow[]): CustomerOrder[] {
       unitPrice: paisaToRupees(line.unit_price_paisa),
       quantity: line.quantity,
       lineTotal: paisaToRupees(line.line_total_paisa),
+      options: (line.options ?? []).map((option) => ({
+        groupName: option.group_name,
+        optionName: option.option_name,
+        priceDelta: paisaToRupees(option.price_delta_paisa),
+      })),
     })),
     events: (row.order_events ?? []).map((event) => ({
       status: event.status,
@@ -213,6 +293,33 @@ export function mapCustomerOrders(rows: CustomerOrderRow[]): CustomerOrder[] {
     })),
     openSupportCaseId: row.open_support_case_id ?? null,
   }));
+}
+
+export function optionSelectionError(item: CustomerMenuItem, selectedOptionIds: string[]) {
+  const selected = new Set(selectedOptionIds);
+  for (const group of item.optionGroups) {
+    const count = group.options.filter((option) => selected.has(option.id)).length;
+    if (count < group.minSelections)
+      return `Choose at least ${group.minSelections} from ${group.name}.`;
+    if (count > group.maxSelections)
+      return `Choose no more than ${group.maxSelections} from ${group.name}.`;
+  }
+  return null;
+}
+
+export function configuredItemPrice(item: CustomerMenuItem, selectedOptionIds: string[]) {
+  const selected = new Set(selectedOptionIds);
+  return (
+    item.price +
+    item.optionGroups
+      .flatMap((group) => group.options)
+      .filter((option) => selected.has(option.id))
+      .reduce((total, option) => total + option.priceDelta, 0)
+  );
+}
+
+export function optionSelectionSignature(menuItemId: string, selectedOptionIds: string[]) {
+  return `${menuItemId}:${[...new Set(selectedOptionIds)].sort().join(",")}`;
 }
 
 export function customerOrderProgress(status: string): number {
