@@ -6,21 +6,23 @@ Updated: 10 August 2026
 
 The repository began as a blank TanStack/Lovable starter. Phase 1 now provides a coherent customer marketplace and working front-end ordering prototype, but it is not yet safe to accept real orders or money.
 
-| Area                            | Current readiness | Evidence and remaining condition                                                                                                                                   |
-| ------------------------------- | ----------------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Customer UI/UX                  |               76% | Responsive discovery, service/fulfilment choice, menu, basket, checkout and order-state journeys exist. Add real data, Urdu, accessibility and usability evidence. |
-| Customer ordering functionality |               38% | Front-end state works; durable order creation, inventory, pricing, tax, refunds and notifications are not connected.                                               |
-| Restaurant/ePOS/KDS             |               12% | Partner entry point exists. Portal, menu import, order acceptance, KDS, printer/device adapters and settlement reports remain.                                     |
-| Rider and dispatch              |                8% | Rider entry point exists. Verification, availability, dispatch, navigation, proof of delivery, safety and earnings remain.                                         |
-| Sales-agent portal              |                8% | Agent proposition exists. Lead ownership, duplicate protection, onboarding evidence and commission ledger remain.                                                  |
-| Admin and operations            |               10% | Operations entry point exists. RBAC screens, support, fraud, refunds, vendor/rider review and audit exports remain.                                                |
-| Security and privacy            |               38% | Headers, OTP adapter, pilot RLS schema, server-priced order RPC, tests and CI exist locally. Staging denial tests and independent testing remain.                  |
-| Reliability and operations      |               12% | Production build passes. Monitoring, backups, restore drill, SLOs, incident playbooks and live integrations remain.                                                |
-| Overall launch readiness        |           **32%** | The Phase 2 candidate has a secure pilot foundation; the current live deployment remains about 25% and is not ready for public trading.                            |
+| Area                            | Current readiness | Evidence and remaining condition                                                                                                                                                         |
+| ------------------------------- | ----------------: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Customer UI/UX                  |               76% | Responsive discovery, service/fulfilment choice, menu, basket, checkout and order-state journeys exist. Add real data, Urdu, accessibility and usability evidence.                       |
+| Customer ordering functionality |               38% | Front-end state works; durable order creation, inventory, pricing, tax, refunds and notifications are not connected.                                                                     |
+| Restaurant/ePOS/KDS             |               34% | Responsive order board, KDS, menu availability, capacity controls, protected transitions and realtime adapters now exist. Real auth/data, POS, printers and reconciliation remain.       |
+| Rider and dispatch              |                8% | Rider entry point exists. Verification, availability, dispatch, navigation, proof of delivery, safety and earnings remain.                                                               |
+| Sales-agent portal              |                8% | Agent proposition exists. Lead ownership, duplicate protection, onboarding evidence and commission ledger remain.                                                                        |
+| Admin and operations            |               10% | Operations entry point exists. RBAC screens, support, fraud, refunds, vendor/rider review and audit exports remain.                                                                      |
+| Security and privacy            |               44% | Headers, OTP adapter, pilot RLS, server-priced orders, protected vendor/menu/branch RPCs, audit events, tests and CI exist locally. Staging denial tests and independent testing remain. |
+| Reliability and operations      |               12% | Production build passes. Monitoring, backups, restore drill, SLOs, incident playbooks and live integrations remain.                                                                      |
+| Overall launch readiness        |           **38%** | The local Phase 3A candidate adds the restaurant operational core; the current live deployment remains behind this package and is not ready for public trading.                          |
 
 Readiness percentages are delivery estimates, not certifications. “100%” requires passed acceptance evidence, not only source code.
 
 The detailed comparison with the parent repository and live product is in [ONYN_REFERENCE_AUDIT.md](./ONYN_REFERENCE_AUDIT.md). Its conclusion is to reuse the parent brand and validated workflow ideas, but not inherit its backend or deployment posture without remediation.
+
+The implementation-level next-phase mapping is in [NEXT_PHASE_REFERENCE_MATRIX.md](./NEXT_PHASE_REFERENCE_MATRIX.md).
 
 The Lovable deployment is reviewed in [LIVE_DEPLOYMENT_AUDIT.md](./LIVE_DEPLOYMENT_AUDIT.md).
 
@@ -143,7 +145,8 @@ Exit: 20 pilot vendors can complete real COD orders end-to-end in staging with n
 
 ### Phase 3 — restaurant operations and controlled pilot
 
-- Restaurant portal, KDS, menu/modifier management, hours, prep time and sold-out controls
+- Restaurant portal, order board, KDS, prep time, busy mode and sold-out controls — Phase 3A candidate built
+- Authenticated live branch/menu/order loading, modifiers, hours and holiday mode — Phase 3B remaining
 - ePOS core, cash shifts, receipt/thermal printer path and reconciliation
 - Manual dispatch console and rider web/PWA workflow
 - Subscription billing, vendor statements and agent onboarding/commission ledger

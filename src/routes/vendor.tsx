@@ -1,0 +1,988 @@
+import { createFileRoute } from "@tanstack/react-router";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  BarChart3,
+  BellRing,
+  Check,
+  CheckCircle2,
+  ChefHat,
+  ChevronDown,
+  CircleDollarSign,
+  Clock3,
+  Gauge,
+  LayoutDashboard,
+  ListChecks,
+  Menu,
+  PackageCheck,
+  PauseCircle,
+  Search,
+  Settings,
+  ShoppingBag,
+  Store,
+  TimerReset,
+  Utensils,
+  Wifi,
+  WifiOff,
+  X,
+  XCircle,
+} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { isPilotBackendConfigured, transitionVendorOrder } from "../lib/supabase";
+import {
+  applyVendorTransition,
+  formatPkr,
+  getOrderUrgency,
+  orderAgeMinutes,
+  vendorMetrics,
+  type VendorOrder,
+  type VendorOrderStatus,
+} from "../lib/vendor-operations";
+
+export const Route = createFileRoute("/vendor")({
+  head: () => ({
+    meta: [
+      { title: "Restaurant workspace — Onyn Pakistan" },
+      {
+        name: "description",
+        content: "Onyn Pakistan restaurant orders, kitchen display and menu operations.",
+      },
+      { name: "robots", content: "noindex, nofollow" },
+    ],
+  }),
+  component: VendorWorkspace,
+});
+
+type WorkspaceView = "orders" | "kds" | "menu" | "reports" | "settings";
+
+const demoNow = Date.parse("2026-08-11T10:45:00.000Z");
+
+const demoOrders: VendorOrder[] = [
+  {
+    id: "demo-1047",
+    reference: "ONY-1047",
+    customer: "Ayesha Khan",
+    status: "placed",
+    fulfilment: "delivery",
+    payment: "cod",
+    totalPaisa: 237_000,
+    placedAt: "2026-08-11T10:39:00.000Z",
+    promisedMinutes: 25,
+    address: "Gulberg III · Gate 2, near Main Market",
+    note: "Less spicy. Please call at the gate.",
+    lines: [
+      { id: "l-1", name: "Chicken Karahi (half)", quantity: 1, station: "Kitchen" },
+      { id: "l-2", name: "Garlic naan", quantity: 2, station: "Grill" },
+      { id: "l-3", name: "Mint lemonade", quantity: 2, station: "Drinks", note: "No ice" },
+    ],
+  },
+  {
+    id: "demo-1046",
+    reference: "ONY-1046",
+    customer: "Hamza Ali",
+    status: "accepted",
+    fulfilment: "collection",
+    payment: "paid",
+    totalPaisa: 129_900,
+    placedAt: "2026-08-11T10:34:00.000Z",
+    promisedMinutes: 20,
+    lines: [
+      { id: "l-4", name: "Double Smash Burger", quantity: 1, station: "Grill" },
+      { id: "l-5", name: "Masala fries", quantity: 1, station: "Kitchen" },
+    ],
+  },
+  {
+    id: "demo-1045",
+    reference: "ONY-1045",
+    customer: "Sana Tariq",
+    status: "preparing",
+    fulfilment: "delivery",
+    payment: "cod",
+    totalPaisa: 184_000,
+    placedAt: "2026-08-11T10:18:00.000Z",
+    promisedMinutes: 25,
+    address: "Model Town · C Block, opposite the mosque",
+    note: "Include disposable cutlery.",
+    lines: [
+      { id: "l-6", name: "Malai boti", quantity: 2, station: "Grill" },
+      { id: "l-7", name: "Paratha", quantity: 3, station: "Kitchen" },
+    ],
+  },
+  {
+    id: "demo-1044",
+    reference: "ONY-1044",
+    customer: "Bilal Ahmed",
+    status: "ready",
+    fulfilment: "collection",
+    payment: "cod",
+    totalPaisa: 799_00,
+    placedAt: "2026-08-11T10:20:00.000Z",
+    promisedMinutes: 20,
+    lines: [{ id: "l-8", name: "Aloo Keema Thali", quantity: 1, station: "Kitchen" }],
+  },
+];
+
+const demoMenu = [
+  { id: "m-1", name: "Chicken Karahi", category: "Desi mains", price: 899, available: true },
+  { id: "m-2", name: "Malai Boti", category: "BBQ", price: 649, available: true },
+  { id: "m-3", name: "Double Smash Burger", category: "Burgers", price: 749, available: true },
+  { id: "m-4", name: "Mint Lemonade", category: "Drinks", price: 249, available: false },
+  { id: "m-5", name: "Aloo Keema Thali", category: "Home-style", price: 499, available: true },
+];
+
+const navItems: Array<{ id: WorkspaceView; label: string; icon: typeof LayoutDashboard }> = [
+  { id: "orders", label: "Orders", icon: ListChecks },
+  { id: "kds", label: "Kitchen", icon: ChefHat },
+  { id: "menu", label: "Menu", icon: Menu },
+  { id: "reports", label: "Reports", icon: BarChart3 },
+  { id: "settings", label: "More", icon: Settings },
+];
+
+const statusLabels: Record<VendorOrderStatus, string> = {
+  placed: "New",
+  accepted: "Accepted",
+  preparing: "Preparing",
+  ready: "Ready",
+  completed: "Completed",
+  rejected: "Rejected",
+};
+
+function VendorWorkspace() {
+  const [view, setView] = useState<WorkspaceView>("orders");
+  const [orders, setOrders] = useState(demoOrders);
+  const [menuItems, setMenuItems] = useState(demoMenu);
+  const [now, setNow] = useState(demoNow);
+  const [acceptingOrders, setAcceptingOrders] = useState(true);
+  const [busyMode, setBusyMode] = useState(false);
+  const [prepMinutes, setPrepMinutes] = useState(25);
+  const [busyOrderId, setBusyOrderId] = useState<string | null>(null);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [feedback, setFeedback] = useState("");
+  const [bumpedLines, setBumpedLines] = useState<string[]>([]);
+  const backendConnected = isPilotBackendConfigured();
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow((value) => value + 60_000), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const metrics = useMemo(() => vendorMetrics(orders), [orders]);
+
+  async function moveOrder(id: string, next: VendorOrderStatus, note?: string) {
+    const current = orders.find((order) => order.id === id);
+    if (!current) return;
+    setBusyOrderId(id);
+    setFeedback("");
+
+    try {
+      if (!id.startsWith("demo-") && next !== "completed") {
+        await transitionVendorOrder({
+          orderId: id,
+          expected: current.status as "placed" | "accepted" | "preparing",
+          next: next as "accepted" | "rejected" | "preparing" | "ready",
+          note,
+        });
+      }
+      setOrders((items) =>
+        items.map((order) => (order.id === id ? applyVendorTransition(order, next, note) : order)),
+      );
+      setFeedback(`${current.reference} moved to ${statusLabels[next].toLowerCase()}.`);
+      setRejectingId(null);
+      setRejectReason("");
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "The order could not be updated.");
+    } finally {
+      setBusyOrderId(null);
+    }
+  }
+
+  function toggleLine(id: string) {
+    setBumpedLines((items) =>
+      items.includes(id) ? items.filter((lineId) => lineId !== id) : [...items, id],
+    );
+  }
+
+  function toggleBusyMode() {
+    setBusyMode((value) => {
+      const next = !value;
+      if (next && prepMinutes < 35) setPrepMinutes(35);
+      setFeedback(next ? "Busy mode on: customer ETA increased." : "Busy mode off.");
+      return next;
+    });
+  }
+
+  return (
+    <div className="vendor-app">
+      <a className="skip-link" href="#vendor-main">
+        Skip to restaurant workspace
+      </a>
+
+      <aside className="vendor-sidebar" aria-label="Restaurant workspace navigation">
+        <a className="vendor-brand" href="/" aria-label="Back to Onyn Pakistan">
+          <span className="brand-mark">O</span>
+          <span>
+            Onyn <small>RESTAURANT</small>
+          </span>
+        </a>
+
+        <div className="branch-card">
+          <span className="branch-avatar">LH</span>
+          <span>
+            <strong>Lahori Karahi House</strong>
+            <small>Gulberg III · Lahore</small>
+          </span>
+          <ChevronDown size={17} />
+        </div>
+
+        <nav>
+          <small className="nav-label">OPERATIONS</small>
+          {navItems.map(({ id, label, icon: Icon }) => (
+            <button
+              className={view === id ? "active" : ""}
+              type="button"
+              key={id}
+              onClick={() => setView(id)}
+            >
+              <Icon size={20} />
+              <span>{label}</span>
+              {id === "orders" && metrics.newOrders > 0 && <b>{metrics.newOrders}</b>}
+            </button>
+          ))}
+        </nav>
+
+        <div className="sidebar-status">
+          <span className={backendConnected ? "connected" : "demo"}>
+            {backendConnected ? <Wifi size={15} /> : <WifiOff size={15} />}
+            {backendConnected ? "Pilot backend connected" : "Safe demo mode"}
+          </span>
+          <p>No privileged credentials are stored in this browser.</p>
+        </div>
+        <a className="back-marketplace" href="/">
+          <ArrowLeft size={17} /> Customer marketplace
+        </a>
+      </aside>
+
+      <main id="vendor-main" className="vendor-main">
+        <header className="vendor-topbar">
+          <div>
+            <span className="mobile-wordmark">Onyn Restaurant</span>
+            <p>Tuesday, 11 August</p>
+            <h1>{navItems.find((item) => item.id === view)?.label}</h1>
+          </div>
+          <div className="ops-controls">
+            <button
+              type="button"
+              className={`accepting-toggle ${acceptingOrders ? "on" : "off"}`}
+              onClick={() => setAcceptingOrders((value) => !value)}
+              aria-pressed={acceptingOrders}
+            >
+              <span /> {acceptingOrders ? "Accepting orders" : "Orders paused"}
+            </button>
+            <button
+              type="button"
+              className={`busy-toggle ${busyMode ? "active" : ""}`}
+              onClick={toggleBusyMode}
+              aria-pressed={busyMode}
+            >
+              <PauseCircle size={17} /> Busy mode
+            </button>
+            <button type="button" className="notification-button" aria-label="Notifications">
+              <BellRing size={20} />
+              {metrics.newOrders > 0 && <b>{metrics.newOrders}</b>}
+            </button>
+          </div>
+        </header>
+
+        {!backendConnected && (
+          <div className="demo-banner" role="status">
+            <AlertTriangle size={18} />
+            <span>
+              <strong>Operational prototype:</strong> actions work with demo orders. Configure the
+              separate Supabase pilot to use authenticated, server-authorised live orders.
+            </span>
+          </div>
+        )}
+
+        {feedback && (
+          <div className="workspace-feedback" role="status" aria-live="polite">
+            <CheckCircle2 size={17} /> {feedback}
+            <button type="button" onClick={() => setFeedback("")} aria-label="Dismiss message">
+              <X size={16} />
+            </button>
+          </div>
+        )}
+
+        {view === "orders" && (
+          <OrdersBoard
+            orders={orders}
+            now={now}
+            busyOrderId={busyOrderId}
+            moveOrder={moveOrder}
+            rejectOrder={setRejectingId}
+            metrics={metrics}
+          />
+        )}
+        {view === "kds" && (
+          <KitchenDisplay
+            orders={orders}
+            now={now}
+            bumpedLines={bumpedLines}
+            toggleLine={toggleLine}
+            busyOrderId={busyOrderId}
+            moveOrder={moveOrder}
+          />
+        )}
+        {view === "menu" && (
+          <MenuAvailability items={menuItems} setItems={setMenuItems} setFeedback={setFeedback} />
+        )}
+        {view === "reports" && <VendorReports orders={orders} metrics={metrics} />}
+        {view === "settings" && (
+          <OperationsSettings
+            acceptingOrders={acceptingOrders}
+            setAcceptingOrders={setAcceptingOrders}
+            prepMinutes={prepMinutes}
+            setPrepMinutes={setPrepMinutes}
+            setFeedback={setFeedback}
+          />
+        )}
+      </main>
+
+      <nav className="vendor-mobile-nav" aria-label="Restaurant workspace mobile navigation">
+        {navItems.map(({ id, label, icon: Icon }) => (
+          <button
+            type="button"
+            key={id}
+            className={view === id ? "active" : ""}
+            onClick={() => setView(id)}
+          >
+            <Icon size={21} />
+            <span>{label}</span>
+            {id === "orders" && metrics.newOrders > 0 && <b>{metrics.newOrders}</b>}
+          </button>
+        ))}
+      </nav>
+
+      {rejectingId && (
+        <div className="vendor-dialog-backdrop" role="presentation">
+          <section
+            className="vendor-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="reject-title"
+          >
+            <button
+              type="button"
+              className="dialog-close"
+              onClick={() => setRejectingId(null)}
+              aria-label="Close"
+            >
+              <X size={19} />
+            </button>
+            <span className="dialog-danger-icon">
+              <XCircle />
+            </span>
+            <h2 id="reject-title">Reject this order?</h2>
+            <p>
+              The customer will be notified. A reason is required for support and audit history.
+            </p>
+            <label>
+              Rejection reason
+              <textarea
+                value={rejectReason}
+                onChange={(event) => setRejectReason(event.target.value)}
+                placeholder="For example: Chicken karahi is sold out"
+                maxLength={300}
+                autoFocus
+              />
+            </label>
+            <div className="dialog-actions">
+              <button type="button" className="secondary" onClick={() => setRejectingId(null)}>
+                Keep order
+              </button>
+              <button
+                type="button"
+                className="danger"
+                disabled={rejectReason.trim().length < 3 || busyOrderId === rejectingId}
+                onClick={() => moveOrder(rejectingId, "rejected", rejectReason)}
+              >
+                Reject order
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OrdersBoard({
+  orders,
+  now,
+  busyOrderId,
+  moveOrder,
+  rejectOrder,
+  metrics,
+}: {
+  orders: VendorOrder[];
+  now: number;
+  busyOrderId: string | null;
+  moveOrder: (id: string, next: VendorOrderStatus, note?: string) => Promise<void>;
+  rejectOrder: (id: string) => void;
+  metrics: ReturnType<typeof vendorMetrics>;
+}) {
+  const columns: Array<{ status: VendorOrderStatus; label: string; icon: typeof Clock3 }> = [
+    { status: "placed", label: "New", icon: BellRing },
+    { status: "accepted", label: "Accepted", icon: CheckCircle2 },
+    { status: "preparing", label: "Preparing", icon: ChefHat },
+    { status: "ready", label: "Ready", icon: PackageCheck },
+  ];
+
+  return (
+    <>
+      <section className="metric-grid" aria-label="Live order summary">
+        <Metric
+          icon={BellRing}
+          label="New orders"
+          value={String(metrics.newOrders)}
+          tone="purple"
+        />
+        <Metric icon={ChefHat} label="In kitchen" value={String(metrics.cooking)} tone="amber" />
+        <Metric icon={PackageCheck} label="Ready" value={String(metrics.ready)} tone="green" />
+        <Metric
+          icon={CircleDollarSign}
+          label="COD to reconcile"
+          value={formatPkr(metrics.codOutstanding)}
+          tone="blue"
+        />
+      </section>
+
+      <section className="orders-heading">
+        <div>
+          <span className="section-kicker">LIVE OPERATIONS</span>
+          <h2>Order board</h2>
+          <p>Accept quickly, keep the kitchen moving and record every exception.</p>
+        </div>
+        <div className="sla-chip">
+          <Gauge size={17} />{" "}
+          {metrics.late > 0 ? `${metrics.late} order needs attention` : "All orders on time"}
+        </div>
+      </section>
+
+      <div className="order-board">
+        {columns.map(({ status, label, icon: Icon }) => {
+          const items = orders.filter((order) => order.status === status);
+          return (
+            <section className={`order-column ${status}`} key={status}>
+              <header>
+                <span>
+                  <Icon size={18} /> {label}
+                </span>
+                <b>{items.length}</b>
+              </header>
+              <div className="order-column-body">
+                {items.length === 0 && (
+                  <p className="column-empty">No {label.toLowerCase()} orders.</p>
+                )}
+                {items.map((order) => (
+                  <OrderCard
+                    order={order}
+                    now={now}
+                    key={order.id}
+                    disabled={busyOrderId === order.id}
+                    moveOrder={moveOrder}
+                    rejectOrder={rejectOrder}
+                  />
+                ))}
+              </div>
+            </section>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
+function OrderCard({
+  order,
+  now,
+  disabled,
+  moveOrder,
+  rejectOrder,
+}: {
+  order: VendorOrder;
+  now: number;
+  disabled: boolean;
+  moveOrder: (id: string, next: VendorOrderStatus) => Promise<void>;
+  rejectOrder: (id: string) => void;
+}) {
+  const age = orderAgeMinutes(order, now);
+  const urgency = getOrderUrgency(order, now);
+  const nextAction =
+    order.status === "accepted"
+      ? { status: "preparing" as const, label: "Start preparing" }
+      : order.status === "preparing"
+        ? { status: "ready" as const, label: "Mark ready" }
+        : order.status === "ready"
+          ? {
+              status: "completed" as const,
+              label: order.fulfilment === "collection" ? "Collected" : "Handed to rider",
+            }
+          : null;
+
+  return (
+    <article className={`vendor-order-card urgency-${urgency}`}>
+      <div className="order-card-top">
+        <span>
+          <strong>{order.reference}</strong>
+          <small>{order.customer}</small>
+        </span>
+        <span className={`order-age ${urgency}`}>
+          <Clock3 size={14} /> {age}m
+        </span>
+      </div>
+      <div className="order-badges">
+        <span>{order.fulfilment}</span>
+        <span className={order.payment === "cod" ? "cod" : "paid"}>
+          {order.payment === "cod" ? "Cash on delivery" : "Paid"}
+        </span>
+      </div>
+      <ul>
+        {order.lines.map((line) => (
+          <li key={line.id}>
+            <b>{line.quantity}×</b> {line.name}
+            {line.note && <small>{line.note}</small>}
+          </li>
+        ))}
+      </ul>
+      {order.note && <p className="customer-note">“{order.note}”</p>}
+      {order.address && <p className="order-address">{order.address}</p>}
+      <div className="order-total">
+        <span>Total</span>
+        <strong>{formatPkr(order.totalPaisa)}</strong>
+      </div>
+
+      {order.status === "placed" ? (
+        <div className="card-actions split">
+          <button
+            type="button"
+            className="primary"
+            disabled={disabled}
+            onClick={() => moveOrder(order.id, "accepted")}
+          >
+            <Check size={17} /> Accept
+          </button>
+          <button
+            type="button"
+            className="reject"
+            disabled={disabled}
+            onClick={() => rejectOrder(order.id)}
+          >
+            <X size={17} /> Reject
+          </button>
+        </div>
+      ) : (
+        nextAction && (
+          <div className="card-actions">
+            <button
+              type="button"
+              className="primary"
+              disabled={disabled}
+              onClick={() => moveOrder(order.id, nextAction.status)}
+            >
+              {order.status === "ready" ? <CheckCircle2 size={17} /> : <ChefHat size={17} />}
+              {nextAction.label}
+            </button>
+          </div>
+        )
+      )}
+    </article>
+  );
+}
+
+function KitchenDisplay({
+  orders,
+  now,
+  bumpedLines,
+  toggleLine,
+  busyOrderId,
+  moveOrder,
+}: {
+  orders: VendorOrder[];
+  now: number;
+  bumpedLines: string[];
+  toggleLine: (id: string) => void;
+  busyOrderId: string | null;
+  moveOrder: (id: string, next: VendorOrderStatus) => Promise<void>;
+}) {
+  const active = orders.filter((order) =>
+    ["placed", "accepted", "preparing", "ready"].includes(order.status),
+  );
+  const columns = [
+    {
+      id: "new",
+      label: "New",
+      orders: active.filter((order) => ["placed", "accepted"].includes(order.status)),
+    },
+    {
+      id: "cooking",
+      label: "Cooking",
+      orders: active.filter((order) => order.status === "preparing"),
+    },
+    { id: "ready", label: "Ready", orders: active.filter((order) => order.status === "ready") },
+  ];
+
+  return (
+    <section className="kds-shell">
+      <header className="kds-header">
+        <div>
+          <span className="section-kicker">KITCHEN DISPLAY</span>
+          <h2>One screen. Clear next action.</h2>
+          <p>
+            Large touch targets and station labels are designed for tablets and low-cost kitchen
+            displays.
+          </p>
+        </div>
+        <div className="kds-legend">
+          <span>
+            <i className="green" /> On time
+          </span>
+          <span>
+            <i className="amber" /> 5 min left
+          </span>
+          <span>
+            <i className="red" /> Late
+          </span>
+        </div>
+      </header>
+
+      <div className="kds-board">
+        {columns.map((column) => (
+          <section className={`kds-column ${column.id}`} key={column.id}>
+            <header>
+              <span>{column.label}</span>
+              <b>{column.orders.length}</b>
+            </header>
+            <div>
+              {column.orders.map((order) => {
+                const allBumped = order.lines.every((line) => bumpedLines.includes(line.id));
+                const urgency = getOrderUrgency(order, now);
+                return (
+                  <article className={`kds-ticket urgency-${urgency}`} key={order.id}>
+                    <div className="ticket-heading">
+                      <span>
+                        <strong>{order.reference}</strong>
+                        <small>{order.fulfilment}</small>
+                      </span>
+                      <b>{orderAgeMinutes(order, now)}m</b>
+                    </div>
+                    {order.note && <p className="ticket-note">{order.note}</p>}
+                    <div className="ticket-lines">
+                      {order.lines.map((line) => {
+                        const done = bumpedLines.includes(line.id);
+                        return (
+                          <button
+                            type="button"
+                            key={line.id}
+                            className={done ? "done" : ""}
+                            onClick={() => order.status === "preparing" && toggleLine(line.id)}
+                            disabled={order.status !== "preparing"}
+                          >
+                            <span>
+                              <b>{line.quantity}×</b> {line.name}
+                              <small>{line.station}</small>
+                            </span>
+                            {done && <Check size={18} />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {order.status === "placed" && (
+                      <button
+                        className="ticket-action"
+                        type="button"
+                        disabled={busyOrderId === order.id}
+                        onClick={() => moveOrder(order.id, "accepted")}
+                      >
+                        Accept order
+                      </button>
+                    )}
+                    {order.status === "accepted" && (
+                      <button
+                        className="ticket-action"
+                        type="button"
+                        disabled={busyOrderId === order.id}
+                        onClick={() => moveOrder(order.id, "preparing")}
+                      >
+                        Start cooking
+                      </button>
+                    )}
+                    {order.status === "preparing" && (
+                      <button
+                        className={`ticket-action ready ${allBumped ? "pulse" : ""}`}
+                        type="button"
+                        disabled={busyOrderId === order.id}
+                        onClick={() => moveOrder(order.id, "ready")}
+                      >
+                        {allBumped ? "All items done — mark ready" : "Mark order ready"}
+                      </button>
+                    )}
+                    {order.status === "ready" && (
+                      <button
+                        className="ticket-action complete"
+                        type="button"
+                        disabled={busyOrderId === order.id}
+                        onClick={() => moveOrder(order.id, "completed")}
+                      >
+                        {order.fulfilment === "collection"
+                          ? "Customer collected"
+                          : "Handed to rider"}
+                      </button>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function MenuAvailability({
+  items,
+  setItems,
+  setFeedback,
+}: {
+  items: typeof demoMenu;
+  setItems: React.Dispatch<React.SetStateAction<typeof demoMenu>>;
+  setFeedback: (value: string) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const filtered = items.filter((item) => item.name.toLowerCase().includes(query.toLowerCase()));
+
+  return (
+    <section className="menu-workspace">
+      <div className="workspace-section-header">
+        <div>
+          <span className="section-kicker">MENU CONTROL</span>
+          <h2>Availability that reaches checkout</h2>
+          <p>
+            Sold-out changes are immediate in this prototype and ready for the protected menu RPC.
+          </p>
+        </div>
+        <button type="button" className="primary-action">
+          <Utensils size={18} /> Add item
+        </button>
+      </div>
+      <label className="vendor-search">
+        <Search size={19} />
+        <input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search menu items"
+        />
+      </label>
+      <div className="menu-table" role="table" aria-label="Menu availability">
+        <div className="menu-table-head" role="row">
+          <span>Item</span>
+          <span>Price</span>
+          <span>Customer availability</span>
+        </div>
+        {filtered.map((item) => (
+          <div className="menu-table-row" role="row" key={item.id}>
+            <span>
+              <i>
+                <ShoppingBag size={19} />
+              </i>
+              <span>
+                <strong>{item.name}</strong>
+                <small>{item.category}</small>
+              </span>
+            </span>
+            <strong>Rs. {item.price.toLocaleString("en-PK")}</strong>
+            <button
+              type="button"
+              className={`stock-toggle ${item.available ? "available" : "sold-out"}`}
+              aria-pressed={item.available}
+              onClick={() => {
+                setItems((menu) =>
+                  menu.map((line) =>
+                    line.id === item.id ? { ...line, available: !line.available } : line,
+                  ),
+                );
+                setFeedback(`${item.name} marked ${item.available ? "sold out" : "available"}.`);
+              }}
+            >
+              <span /> {item.available ? "Available" : "Sold out"}
+            </button>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function VendorReports({
+  orders,
+  metrics,
+}: {
+  orders: VendorOrder[];
+  metrics: ReturnType<typeof vendorMetrics>;
+}) {
+  const orderValue = orders
+    .filter((order) => order.status !== "rejected")
+    .reduce((sum, order) => sum + order.totalPaisa, 0);
+  return (
+    <section className="reports-workspace">
+      <div className="workspace-section-header">
+        <div>
+          <span className="section-kicker">PILOT REPORT</span>
+          <h2>Today at a glance</h2>
+          <p>Operational numbers use Pakistan rupees and separate COD exposure from sales.</p>
+        </div>
+      </div>
+      <div className="report-cards">
+        <Metric
+          icon={CircleDollarSign}
+          label="Order value"
+          value={formatPkr(orderValue)}
+          tone="purple"
+        />
+        <Metric
+          icon={CheckCircle2}
+          label="Acceptance"
+          value={`${metrics.acceptanceRate}%`}
+          tone="green"
+        />
+        <Metric
+          icon={TimerReset}
+          label="Needs attention"
+          value={String(metrics.late)}
+          tone="amber"
+        />
+      </div>
+      <article className="pilot-checklist">
+        <span className="pilot-check-icon">
+          <ListChecks />
+        </span>
+        <div>
+          <h3>Before this report becomes financial evidence</h3>
+          <p>
+            Connect settled payments, refunds, discounts, delivery cost, COD handover and vendor
+            statements. The UI deliberately does not call gross order value “earnings”.
+          </p>
+        </div>
+      </article>
+    </section>
+  );
+}
+
+function OperationsSettings({
+  acceptingOrders,
+  setAcceptingOrders,
+  prepMinutes,
+  setPrepMinutes,
+  setFeedback,
+}: {
+  acceptingOrders: boolean;
+  setAcceptingOrders: React.Dispatch<React.SetStateAction<boolean>>;
+  prepMinutes: number;
+  setPrepMinutes: React.Dispatch<React.SetStateAction<number>>;
+  setFeedback: (value: string) => void;
+}) {
+  return (
+    <section className="settings-workspace">
+      <div className="workspace-section-header">
+        <div>
+          <span className="section-kicker">BRANCH OPERATIONS</span>
+          <h2>Capacity and preparation</h2>
+          <p>Safe defaults for a controlled Lahore restaurant pilot.</p>
+        </div>
+      </div>
+      <div className="settings-grid">
+        <article className="setting-card">
+          <span className="setting-icon">
+            <Store />
+          </span>
+          <div>
+            <h3>Online ordering</h3>
+            <p>Pause new checkout while existing orders continue.</p>
+          </div>
+          <button
+            type="button"
+            className={`stock-toggle ${acceptingOrders ? "available" : "sold-out"}`}
+            onClick={() => setAcceptingOrders((value) => !value)}
+          >
+            <span />
+            {acceptingOrders ? "Open" : "Paused"}
+          </button>
+        </article>
+        <article className="setting-card prep-setting">
+          <span className="setting-icon">
+            <Clock3 />
+          </span>
+          <div>
+            <h3>Default preparation time</h3>
+            <p>Shown to customers before they order.</p>
+          </div>
+          <label>
+            <input
+              type="number"
+              min={10}
+              max={90}
+              step={5}
+              value={prepMinutes}
+              onChange={(event) => setPrepMinutes(Number(event.target.value))}
+            />{" "}
+            minutes
+          </label>
+        </article>
+        <article className="setting-card">
+          <span className="setting-icon">
+            <Wifi />
+          </span>
+          <div>
+            <h3>Low-bandwidth mode</h3>
+            <p>Text-first order tickets remain readable on unstable connections.</p>
+          </div>
+          <span className="setting-ready">
+            <Check /> Included
+          </span>
+        </article>
+      </div>
+      <button
+        type="button"
+        className="save-settings"
+        onClick={() => setFeedback("Branch operating settings saved for this prototype session.")}
+      >
+        <Check size={18} /> Save operating settings
+      </button>
+    </section>
+  );
+}
+
+function Metric({
+  icon: Icon,
+  label,
+  value,
+  tone,
+}: {
+  icon: typeof Clock3;
+  label: string;
+  value: string;
+  tone: string;
+}) {
+  return (
+    <article className={`metric-card ${tone}`}>
+      <span>
+        <Icon />
+      </span>
+      <div>
+        <small>{label}</small>
+        <strong>{value}</strong>
+      </div>
+    </article>
+  );
+}

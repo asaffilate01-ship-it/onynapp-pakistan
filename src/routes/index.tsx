@@ -276,7 +276,8 @@ const roleCards = [
     icon: Store,
     title: "Restaurant partner",
     detail: "Fixed monthly fee. Keep more of every order.",
-    action: "List your business",
+    action: "Open restaurant workspace",
+    href: "/vendor",
   },
   {
     icon: Bike,
@@ -650,14 +651,17 @@ function OnynApp() {
                 </div>
               </div>
               <div className="role-grid">
-                {roleCards.map(({ icon: Icon, title, detail, action }) => (
+                {roleCards.map(({ icon: Icon, title, detail, action, href }) => (
                   <article className="role-card" key={title}>
                     <span className="role-icon">
                       <Icon />
                     </span>
                     <h3>{title}</h3>
                     <p>{detail}</p>
-                    <button type="button" onClick={() => setRoleOpen(true)}>
+                    <button
+                      type="button"
+                      onClick={() => (href ? window.location.assign(href) : setRoleOpen(true))}
+                    >
                       {action} <ArrowRight size={16} />
                     </button>
                   </article>
@@ -1210,8 +1214,12 @@ function OnynApp() {
               Choose the workspace you want to join. Each production portal will have its own
               permissions, verification and audit trail.
             </p>
-            {roleCards.map(({ icon: Icon, title, detail, action }) => (
-              <button type="button" key={title}>
+            {roleCards.map(({ icon: Icon, title, detail, action, href }) => (
+              <button
+                type="button"
+                key={title}
+                onClick={() => href && window.location.assign(href)}
+              >
                 <span className="role-icon">
                   <Icon />
                 </span>
