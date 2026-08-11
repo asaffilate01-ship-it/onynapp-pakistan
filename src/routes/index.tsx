@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import {
   ArrowLeft,
   ArrowRight,
+  Bell,
   Bike,
   Building2,
   Check,
@@ -30,8 +31,13 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   canRequestCancellation,
+  configuredItemPrice,
   customerOrderProgress,
+  optionSelectionError,
+  optionSelectionSignature,
   type CustomerOrder,
+  type CustomerOptionGroup,
+  type CustomerMenuOption,
 } from "../lib/customer-workspace";
 import {
   checkPilotServiceability,
@@ -44,14 +50,18 @@ import {
   getCurrentCustomer,
   isPilotBackendConfigured,
   listCustomerOrders,
+  listCustomerNotifications,
   listMarketplaceCatalog,
+  markCustomerNotificationRead,
   requestCustomerCancellation,
   requestPakistanOtp,
   saveCustomerPilotAddress,
   signOutCustomer,
   subscribeToCustomerOrders,
+  subscribeToCustomerNotifications,
   verifyPakistanOtp,
   type CreatedCodOrder,
+  type CustomerNotification,
 } from "../lib/supabase";
 
 export const Route = createFileRoute("/")({
@@ -90,6 +100,8 @@ type Restaurant = {
   acceptingOrders?: boolean;
   acceptsDelivery?: boolean;
   acceptsCollection?: boolean;
+  openNow?: boolean;
+  scheduleConfigured?: boolean;
   isLive?: boolean;
 };
 
@@ -103,10 +115,15 @@ type MenuItem = {
   popular?: boolean;
   available?: boolean;
   category?: string;
+  optionGroups?: CustomerOptionGroup[];
   isLive?: boolean;
 };
 
-type CartLine = MenuItem & { quantity: number };
+type CartLine = MenuItem & {
+  cartKey: string;
+  quantity: number;
+  selectedOptions: CustomerMenuOption[];
+};
 type AppView = "home" | "search" | "orders" | "account" | "restaurant" | "checkout";
 
 const categories = [
@@ -349,6 +366,9 @@ function OnynApp() {
   const [catalogMessage, setCatalogMessage] = useState("");
   const [cart, setCart] = useState<CartLine[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
+  const [customisingItem, setCustomisingItem] = useState<MenuItem | null>(null);
+  const [selectedOptionIds, setSelectedOptionIds] = useState<string[]>([]);
+  const [optionMessage, setOptionMessage] = useState("");
   const [roleOpen, setRoleOpen] = useState(false);
   const [partnerMessage, setPartnerMessage] = useState("");
   const [locationOpen, setLocationOpen] = useState(false);
@@ -365,6 +385,7 @@ function OnynApp() {
   const [placedOrder, setPlacedOrder] = useState<CreatedCodOrder | null>(null);
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [customerOrders, setCustomerOrders] = useState<CustomerOrder[]>([]);
+  const [customerNotifications, setCustomerNotifications] = useState<CustomerNotification[]>([]);
   const [ordersState, setOrdersState] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [checkoutState, setCheckoutState] = useState<"idle" | "placing" | "error">("idle");
   const [checkoutMessage, setCheckoutMessage] = useState("");
@@ -388,6 +409,15 @@ function OnynApp() {
       setOrdersState("ready");
     } catch {
       setOrdersState("error");
+    }
+  }, [backendConfigured]);
+
+  const loadNotifications = useCallback(async () => {
+    if (!backendConfigured) return;
+    try {
+      setCustomerNotifications(await listCustomerNotifications());
+    } catch {
+      setCustomerNotifications([]);
     }
   }, [backendConfigured]);
 
@@ -434,16 +464,22 @@ function OnynApp() {
       setCustomerId(user.id);
       setOtpState("verified");
       void loadOrders();
+      void loadNotifications();
     });
     return () => {
       active = false;
     };
-  }, [backendConfigured, loadOrders]);
+  }, [backendConfigured, loadNotifications, loadOrders]);
 
   useEffect(() => {
     if (!customerId) return;
     return subscribeToCustomerOrders(customerId, () => void loadOrders());
   }, [customerId, loadOrders]);
+
+  useEffect(() => {
+    if (!customerId) return;
+    return subscribeToCustomerNotifications(customerId, () => void loadNotifications());
+  }, [customerId, loadNotifications]);
 
   const filteredRestaurants = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -515,24 +551,77 @@ function OnynApp() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function addItem(item: MenuItem) {
+  function beginAddItem(item: MenuItem) {
     if (item.available === false || selectedRestaurant.acceptingOrders === false) return;
+    if (item.optionGroups?.length) {
+      setCustomisingItem(item);
+      setSelectedOptionIds([]);
+      setOptionMessage("");
+      return;
+    }
+    addConfiguredItem(item, []);
+  }
+
+  function addConfiguredItem(item: MenuItem, optionIds: string[]) {
+    if (item.available === false || selectedRestaurant.acceptingOrders === false) return;
+    const selectionError = optionSelectionError(
+      { ...item, optionGroups: item.optionGroups ?? [], isLive: true } as Parameters<
+        typeof optionSelectionError
+      >[0],
+      optionIds,
+    );
+    if (selectionError) {
+      setOptionMessage(selectionError);
+      return;
+    }
+    const optionGroups = item.optionGroups ?? [];
+    const selected = new Set(optionIds);
+    const selectedOptions = optionGroups
+      .flatMap((group) => group.options)
+      .filter((option) => selected.has(option.id));
+    const price = configuredItemPrice(
+      { ...item, optionGroups, isLive: true } as Parameters<typeof configuredItemPrice>[0],
+      optionIds,
+    );
+    const cartKey = optionSelectionSignature(item.id, optionIds);
     setCart((current) => {
-      const existing = current.find((line) => line.id === item.id);
+      const existing = current.find((line) => line.cartKey === cartKey);
       if (existing) {
         return current.map((line) =>
-          line.id === item.id ? { ...line, quantity: line.quantity + 1 } : line,
+          line.cartKey === cartKey ? { ...line, quantity: line.quantity + 1 } : line,
         );
       }
-      return [...current, { ...item, quantity: 1 }];
+      return [...current, { ...item, cartKey, price, selectedOptions, quantity: 1 }];
+    });
+    setCustomisingItem(null);
+    setSelectedOptionIds([]);
+    setOptionMessage("");
+  }
+
+  function toggleMenuOption(group: CustomerOptionGroup, optionId: string) {
+    setOptionMessage("");
+    setSelectedOptionIds((current) => {
+      const groupIds = new Set(group.options.map((option) => option.id));
+      if (group.maxSelections === 1) {
+        return [...current.filter((id) => !groupIds.has(id)), optionId];
+      }
+      if (current.includes(optionId)) return current.filter((id) => id !== optionId);
+      const selectedInGroup = current.filter((id) => groupIds.has(id)).length;
+      if (selectedInGroup >= group.maxSelections) {
+        setOptionMessage(`Choose no more than ${group.maxSelections} from ${group.name}.`);
+        return current;
+      }
+      return [...current, optionId];
     });
   }
 
-  function changeQuantity(id: string, amount: number) {
+  function changeQuantity(cartKey: string, amount: number) {
     setCart((current) =>
       current
         .map((line) =>
-          line.id === id ? { ...line, quantity: Math.max(0, line.quantity + amount) } : line,
+          line.cartKey === cartKey
+            ? { ...line, quantity: Math.max(0, line.quantity + amount) }
+            : line,
         )
         .filter((line) => line.quantity > 0),
     );
@@ -566,7 +655,10 @@ function OnynApp() {
     if (result.ok) {
       const user = await getCurrentCustomer();
       setCustomerId(user?.id ?? null);
-      if (user) void loadOrders();
+      if (user) {
+        void loadOrders();
+        void loadNotifications();
+      }
       setOtpState("verified");
       setOtpMessage("Mobile number verified. You are securely signed in.");
       if (returnToCheckout) {
@@ -611,7 +703,11 @@ function OnynApp() {
         branchId: selectedRestaurant.id,
         addressId: address?.id ?? null,
         fulfilment,
-        items: cart.map((item) => ({ menuItemId: item.id, quantity: item.quantity })),
+        items: cart.map((item) => ({
+          menuItemId: item.id,
+          quantity: item.quantity,
+          optionIds: item.selectedOptions.map((option) => option.id),
+        })),
         note: deliveryNote,
       });
       setPlacedOrder(created);
@@ -657,10 +753,22 @@ function OnynApp() {
     await signOutCustomer();
     setCustomerId(null);
     setCustomerOrders([]);
+    setCustomerNotifications([]);
     setOtpState("idle");
     setOtpCode("");
     setPendingPhone("");
     setOtpMessage("You have been signed out.");
+  }
+
+  async function readNotification(notification: CustomerNotification) {
+    if (!notification.read_at) {
+      await markCustomerNotificationRead(notification.id);
+      setCustomerNotifications((current) =>
+        current.map((item) =>
+          item.id === notification.id ? { ...item, read_at: new Date().toISOString() } : item,
+        ),
+      );
+    }
   }
 
   return (
@@ -1022,7 +1130,14 @@ function OnynApp() {
               <div className="restaurant-title-row">
                 <div>
                   <span className="status-pill">
-                    <span /> {selectedRestaurant.acceptingOrders === false ? "Paused" : "Open"}
+                    <span />
+                    {selectedRestaurant.scheduleConfigured === false
+                      ? "Hours required"
+                      : selectedRestaurant.openNow === false
+                        ? "Closed"
+                        : selectedRestaurant.acceptingOrders === false
+                          ? "Paused"
+                          : "Open"}
                   </span>
                   <h1>{selectedRestaurant.name}</h1>
                   <p>{selectedRestaurant.cuisine}</p>
@@ -1053,8 +1168,11 @@ function OnynApp() {
               </div>
               {selectedRestaurant.acceptingOrders === false && (
                 <p className="catalog-status" role="status">
-                  This restaurant has paused new orders. You can browse the menu but cannot add
-                  items.
+                  {selectedRestaurant.scheduleConfigured === false
+                    ? "This restaurant must publish all seven days of opening hours before checkout can open."
+                    : selectedRestaurant.openNow === false
+                      ? "This restaurant is outside its published opening hours or has a temporary closure."
+                      : "This restaurant has paused new orders. Existing orders continue normally."}
                 </p>
               )}
               <div className="menu-layout">
@@ -1082,7 +1200,7 @@ function OnynApp() {
                           <span>{item.emoji}</span>
                           <button
                             type="button"
-                            onClick={() => addItem(item)}
+                            onClick={() => beginAddItem(item)}
                             aria-label={`Add ${item.name}`}
                             disabled={
                               item.available === false ||
@@ -1312,6 +1430,46 @@ function OnynApp() {
               <p className="catalog-status" role="status">
                 {checkoutMessage}
               </p>
+            )}
+            {customerId && customerNotifications.length > 0 && (
+              <section className="notification-centre" aria-labelledby="notification-heading">
+                <div>
+                  <span className="section-kicker">ORDER UPDATES</span>
+                  <h2 id="notification-heading">
+                    Notifications
+                    {customerNotifications.some((notification) => !notification.read_at) && (
+                      <b>
+                        {
+                          customerNotifications.filter((notification) => !notification.read_at)
+                            .length
+                        }
+                      </b>
+                    )}
+                  </h2>
+                </div>
+                <div className="notification-list">
+                  {customerNotifications.slice(0, 5).map((notification) => (
+                    <button
+                      type="button"
+                      key={notification.id}
+                      className={notification.read_at ? "read" : "unread"}
+                      onClick={() => void readNotification(notification)}
+                    >
+                      <Bell size={18} />
+                      <span>
+                        <strong>{notification.title}</strong>
+                        <small>{notification.body}</small>
+                      </span>
+                      <time dateTime={notification.created_at}>
+                        {new Intl.DateTimeFormat("en-PK", {
+                          dateStyle: "short",
+                          timeStyle: "short",
+                        }).format(new Date(notification.created_at))}
+                      </time>
+                    </button>
+                  ))}
+                </div>
+              </section>
             )}
             {backendConfigured && !customerId ? (
               <EmptyState
@@ -1718,6 +1876,77 @@ function OnynApp() {
         </Modal>
       )}
 
+      {customisingItem && (
+        <Modal
+          title={`Customise ${customisingItem.name}`}
+          onClose={() => {
+            setCustomisingItem(null);
+            setSelectedOptionIds([]);
+            setOptionMessage("");
+          }}
+        >
+          <div className="modifier-modal">
+            {(customisingItem.optionGroups ?? []).map((group) => (
+              <fieldset key={group.id}>
+                <legend>
+                  <span>{group.name}</span>
+                  <small>
+                    {group.required ? "Required" : "Optional"} · Choose up to {group.maxSelections}
+                  </small>
+                </legend>
+                <div className="modifier-options">
+                  {group.options.map((option) => {
+                    const selected = selectedOptionIds.includes(option.id);
+                    return (
+                      <button
+                        type="button"
+                        key={option.id}
+                        className={selected ? "selected" : ""}
+                        aria-pressed={selected}
+                        disabled={!option.available}
+                        onClick={() => toggleMenuOption(group, option.id)}
+                      >
+                        <span>{selected ? <Check size={16} /> : <Plus size={16} />}</span>
+                        <strong>{option.name}</strong>
+                        <small>
+                          {!option.available
+                            ? "Unavailable"
+                            : option.priceDelta === 0
+                              ? "Included"
+                              : `${option.priceDelta > 0 ? "+" : "−"}${money(Math.abs(option.priceDelta))}`}
+                        </small>
+                      </button>
+                    );
+                  })}
+                </div>
+              </fieldset>
+            ))}
+            {optionMessage && (
+              <p className="checkout-blocker" role="alert">
+                {optionMessage}
+              </p>
+            )}
+            <button
+              type="button"
+              className="checkout-button"
+              onClick={() => addConfiguredItem(customisingItem, selectedOptionIds)}
+            >
+              Add to basket ·{" "}
+              {money(
+                configuredItemPrice(
+                  {
+                    ...customisingItem,
+                    optionGroups: customisingItem.optionGroups ?? [],
+                    isLive: true,
+                  } as Parameters<typeof configuredItemPrice>[0],
+                  selectedOptionIds,
+                ),
+              )}
+            </button>
+          </div>
+        </Modal>
+      )}
+
       {cancelOrderId && (
         <Modal
           title="Request cancellation"
@@ -1819,7 +2048,11 @@ function RestaurantGrid({
             aria-label={`Open ${restaurant.name}`}
           >
             <span>{restaurant.emoji}</span>
-            {restaurant.promo && <b>{restaurant.promo}</b>}
+            {restaurant.acceptingOrders === false ? (
+              <b>Closed</b>
+            ) : (
+              restaurant.promo && <b>{restaurant.promo}</b>
+            )}
           </button>
           <button
             className="favourite-button"
@@ -1891,6 +2124,9 @@ function CustomerOrderCard({ order, onCancel }: { order: CustomerOrder; onCancel
           <span key={line.id}>
             <small>
               {line.quantity}× {line.name}
+              {line.options.length > 0 && (
+                <em>{line.options.map((option) => option.optionName).join(" · ")}</em>
+              )}
             </small>
             <b>{money(line.lineTotal)}</b>
           </span>
@@ -1948,16 +2184,19 @@ function BasketContent({
     <div className="basket-content">
       <div className="basket-lines">
         {cart.map((line) => (
-          <div className="basket-line" key={line.id}>
+          <div className="basket-line" key={line.cartKey}>
             <span className="basket-emoji">{line.emoji}</span>
             <span>
               <strong>{line.name}</strong>
+              {line.selectedOptions.length > 0 && (
+                <small>{line.selectedOptions.map((option) => option.name).join(" · ")}</small>
+              )}
               <small>{money(line.price)}</small>
             </span>
             <div className="quantity-control">
               <button
                 type="button"
-                onClick={() => changeQuantity(line.id, -1)}
+                onClick={() => changeQuantity(line.cartKey, -1)}
                 aria-label={`Remove one ${line.name}`}
               >
                 <Minus />
@@ -1965,7 +2204,7 @@ function BasketContent({
               <b>{line.quantity}</b>
               <button
                 type="button"
-                onClick={() => changeQuantity(line.id, 1)}
+                onClick={() => changeQuantity(line.cartKey, 1)}
                 aria-label={`Add one ${line.name}`}
               >
                 <Plus />

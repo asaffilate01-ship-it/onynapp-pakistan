@@ -35,11 +35,15 @@ export function mapVendorBackendOrder(row: unknown, promisedMinutes: number): Ve
   const lines = rawLines.map((value, index): VendorOrderLine => {
     const line = record(value);
     const name = text(line.name, "Menu item");
+    const options = Array.isArray(line.options)
+      ? line.options.map((option) => text(option)).filter(Boolean)
+      : [];
     return {
       id: text(line.id, `line-${index}`),
       name,
       quantity: Math.max(1, integer(line.quantity, 1)),
       station: stationFor(name),
+      note: options.length ? options.join(" · ") : undefined,
     };
   });
 
@@ -68,15 +72,49 @@ export type VendorMenuItem = {
   category: string;
   price: number;
   available: boolean;
+  optionGroups: Array<{
+    id: string;
+    name: string;
+    required: boolean;
+    minSelections: number;
+    maxSelections: number;
+    options: Array<{
+      id: string;
+      name: string;
+      priceDelta: number;
+      available: boolean;
+    }>;
+  }>;
 };
 
 export function mapVendorBackendMenuItem(row: unknown): VendorMenuItem {
   const source = record(row);
+  const rawGroups = Array.isArray(source.menu_option_groups) ? source.menu_option_groups : [];
   return {
     id: text(source.id),
     name: text(source.name, "Menu item"),
     category: "Menu",
     price: Math.round(integer(source.price_paisa) / 100),
     available: source.available === true,
+    optionGroups: rawGroups.map((value) => {
+      const group = record(value);
+      const rawOptions = Array.isArray(group.menu_options) ? group.menu_options : [];
+      return {
+        id: text(group.id),
+        name: text(group.name, "Options"),
+        required: group.required === true,
+        minSelections: integer(group.min_selections),
+        maxSelections: Math.max(1, integer(group.max_selections, 1)),
+        options: rawOptions.map((optionValue) => {
+          const option = record(optionValue);
+          return {
+            id: text(option.id),
+            name: text(option.name, "Option"),
+            priceDelta: Math.round(integer(option.price_delta_paisa) / 100),
+            available: option.available === true,
+          };
+        }),
+      };
+    }),
   };
 }
