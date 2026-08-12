@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import {
   Bike,
   CheckCircle2,
+  FileCheck2,
   MapPin,
   Navigation,
   Send,
@@ -12,7 +13,7 @@ import {
 import { useCallback, useEffect, useState } from "react";
 import { LaunchHero, LaunchShell, StatusMessage } from "../components/launch-shell";
 import { PilotAuth } from "../components/pilot-auth";
-import { nextRiderActions } from "../lib/launch";
+import { nextRiderActions, requiredRiderEvidence } from "../lib/launch";
 import { normalizePakistanPhone } from "../lib/pilot";
 import {
   getCurrentCustomer,
@@ -20,6 +21,8 @@ import {
   isPilotBackendConfigured,
   submitRiderApplication,
   transitionRiderJob,
+  uploadRiderVerificationDocument,
+  type RiderDocumentKind,
   type RiderWorkspaceSnapshot,
 } from "../lib/supabase";
 
@@ -42,6 +45,7 @@ function RiderPage() {
   const [proof, setProof] = useState("");
   const [cash, setCash] = useState("");
   const [message, setMessage] = useState("");
+  const [uploading, setUploading] = useState<RiderDocumentKind | null>(null);
 
   const load = useCallback(async () => {
     if (!configured) return;
@@ -103,6 +107,20 @@ function RiderPage() {
     }
   }
 
+  async function uploadEvidence(kind: RiderDocumentKind, file: File | undefined) {
+    if (!file) return;
+    setUploading(kind);
+    try {
+      await uploadRiderVerificationDocument(kind, file);
+      setMessage("Verification evidence uploaded securely for review.");
+      await load();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Evidence could not be uploaded.");
+    } finally {
+      setUploading(null);
+    }
+  }
+
   return (
     <LaunchShell>
       <LaunchHero
@@ -144,7 +162,11 @@ function RiderPage() {
           {message && (
             <StatusMessage
               tone={
-                message.includes("submitted") || message.includes("moved") ? "success" : "error"
+                message.includes("submitted") ||
+                message.includes("moved") ||
+                message.includes("uploaded")
+                  ? "success"
+                  : "error"
               }
             >
               {message}
@@ -227,11 +249,59 @@ function RiderPage() {
                     {workspace.application.full_name} · {workspace.application.vehicle_type} ·{" "}
                     {workspace.application.area}
                   </p>
+                  <p className={`verification-state ${workspace.application.verification_status}`}>
+                    Evidence: {workspace.application.verification_status.replaceAll("_", " ")}
+                  </p>
                   {workspace.application.review_note && (
                     <blockquote>{workspace.application.review_note}</blockquote>
                   )}
                 </div>
               </section>
+              {workspace.application.status === "screening" && (
+                <section className="rider-evidence-card">
+                  <header>
+                    <FileCheck2 />
+                    <div>
+                      <small>PRIVATE VERIFICATION</small>
+                      <h2>Upload required rider evidence</h2>
+                      <p>
+                        JPEG, PNG or PDF only, up to 5 MB. Files are private and available only to
+                        you and authorised Onyn verification staff.
+                      </p>
+                    </div>
+                  </header>
+                  <div className="rider-evidence-grid">
+                    {requiredRiderEvidence(workspace.application.vehicle_type).map((item) => {
+                      const document = workspace.documents?.find(
+                        (candidate) => candidate.document_kind === item.kind,
+                      );
+                      return (
+                        <label
+                          key={item.kind}
+                          className={`evidence-upload ${document?.status ?? "missing"}`}
+                        >
+                          <span>
+                            <strong>{item.label}</strong>
+                            <small>{document ? document.status : "Required"}</small>
+                            {document?.review_note && <em>{document.review_note}</em>}
+                          </span>
+                          {document?.status !== "verified" && (
+                            <input
+                              type="file"
+                              accept="image/jpeg,image/png,application/pdf"
+                              disabled={uploading !== null}
+                              onChange={(event) =>
+                                void uploadEvidence(item.kind, event.target.files?.[0])
+                              }
+                            />
+                          )}
+                          {uploading === item.kind && <b>Encrypting and uploading…</b>}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
               {workspace.application.status === "approved" && (
                 <section className="rider-jobs">
                   <div className="section-heading launch-heading">
@@ -274,6 +344,9 @@ function RiderPage() {
                               Rs. {(job.cash_to_collect_paisa / 100).toLocaleString("en-PK")}
                             </strong>
                           </span>
+                          {job.status === "delivered" && (
+                            <b className={`cod-state ${job.cod_status}`}>{job.cod_status}</b>
+                          )}
                         </div>
                         {job.status === "picked_up" && (
                           <div className="delivery-proof-fields">

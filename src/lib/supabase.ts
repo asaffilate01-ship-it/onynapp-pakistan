@@ -58,9 +58,8 @@ export async function requestPakistanOtp(
     };
   }
 
-  const { error } = await supabase.auth.signInWithOtp({
-    phone,
-    options: { shouldCreateUser: options.shouldCreateUser ?? true },
+  const { error } = await supabase.functions.invoke("request-otp", {
+    body: { phone, shouldCreateUser: options.shouldCreateUser ?? true },
   });
   if (error) {
     return {
@@ -622,6 +621,8 @@ export type RiderJob = {
   reference: string;
   status: string;
   cash_to_collect_paisa: number;
+  cash_collected_paisa: number | null;
+  cod_status: "pending" | "collected" | "reconciled" | "disputed";
   restaurant: string;
   pickup_address: string;
   delivery_address: string | null;
@@ -640,9 +641,21 @@ export type RiderWorkspaceSnapshot = {
     has_valid_licence: boolean;
     status: string;
     review_note: string | null;
+    verification_status:
+      "not_started" | "documents_required" | "in_review" | "verified" | "rejected";
   };
+  documents: Array<{
+    id: string;
+    document_kind: RiderDocumentKind;
+    status: "pending" | "verified" | "rejected";
+    review_note: string | null;
+    created_at: string;
+  }>;
   jobs: RiderJob[];
 };
+
+export type RiderDocumentKind =
+  "cnic_front" | "cnic_back" | "licence_front" | "vehicle_registration";
 
 export async function submitRiderApplication(input: {
   fullName: string;
@@ -672,6 +685,34 @@ export async function getRiderWorkspaceSnapshot(): Promise<RiderWorkspaceSnapsho
   return data as RiderWorkspaceSnapshot;
 }
 
+export async function uploadRiderVerificationDocument(kind: RiderDocumentKind, file: File) {
+  const allowed = ["image/jpeg", "image/png", "application/pdf"];
+  if (!allowed.includes(file.type) || file.size < 1 || file.size > 5 * 1024 * 1024) {
+    throw new Error("Choose a JPEG, PNG or PDF no larger than 5 MB.");
+  }
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error("Pilot backend is not configured.");
+  const user = await getCurrentCustomer();
+  if (!user) throw new Error("Sign in before uploading verification evidence.");
+  const extension =
+    file.type === "application/pdf" ? "pdf" : file.type === "image/png" ? "png" : "jpg";
+  const objectPath = `${user.id}/${kind}/${crypto.randomUUID()}.${extension}`;
+  const { error: uploadError } = await supabase.storage
+    .from("rider-verification")
+    .upload(objectPath, file, { cacheControl: "0", upsert: false, contentType: file.type });
+  if (uploadError) throw new Error("The secure document upload could not be completed.");
+  const { error } = await supabase.rpc("rider_register_verification_document", {
+    p_document_kind: kind,
+    p_object_path: objectPath,
+    p_mime_type: file.type,
+    p_size_bytes: file.size,
+  });
+  if (error) {
+    await supabase.storage.from("rider-verification").remove([objectPath]);
+    throw new Error("The uploaded document could not be registered securely.");
+  }
+}
+
 export async function transitionRiderJob(input: {
   jobId: string;
   expected: string;
@@ -698,14 +739,76 @@ export type OpsLaunchSnapshot = {
   support_cases: Array<Record<string, unknown>>;
   delivery_jobs: Array<Record<string, unknown>>;
   ready_delivery_orders: Array<Record<string, unknown>>;
+  verification_documents: Array<Record<string, unknown>>;
+  cod_reconciliation: Array<Record<string, unknown>>;
+  notification_health: { queued: number; sending: number; dead_letter: number };
+  launch_checks: Array<Record<string, unknown>>;
 };
 
 export async function getOpsLaunchSnapshot(): Promise<OpsLaunchSnapshot> {
   const supabase = getSupabaseClient();
   if (!supabase) throw new Error("Pilot backend is not configured.");
-  const { data, error } = await supabase.rpc("ops_launch_snapshot");
-  if (error) throw new Error("Operations access could not be verified.");
-  return data as OpsLaunchSnapshot;
+  const [launch, hardening] = await Promise.all([
+    supabase.rpc("ops_launch_snapshot"),
+    supabase.rpc("ops_phase4b_snapshot"),
+  ]);
+  if (launch.error || hardening.error) throw new Error("Operations access could not be verified.");
+  return { ...(launch.data as object), ...(hardening.data as object) } as OpsLaunchSnapshot;
+}
+
+export async function getOpsRiderDocumentUrl(objectPath: string) {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error("Pilot backend is not configured.");
+  const { data, error } = await supabase.storage
+    .from("rider-verification")
+    .createSignedUrl(objectPath, 300);
+  if (error || !data?.signedUrl) throw new Error("Secure evidence could not be opened.");
+  return data.signedUrl;
+}
+
+export async function reviewOpsRiderDocument(input: {
+  documentId: string;
+  status: "verified" | "rejected";
+  note?: string;
+}) {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error("Pilot backend is not configured.");
+  const { error } = await supabase.rpc("ops_review_rider_document", {
+    p_document_id: input.documentId,
+    p_status: input.status,
+    p_note: input.note?.trim() || null,
+  });
+  if (error) throw new Error("The verification decision could not be saved.");
+}
+
+export async function reconcileOpsCodJob(input: {
+  jobId: string;
+  receivedPaisa: number;
+  note: string;
+}) {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error("Pilot backend is not configured.");
+  const { error } = await supabase.rpc("ops_reconcile_cod_job", {
+    p_job_id: input.jobId,
+    p_received_paisa: input.receivedPaisa,
+    p_note: input.note.trim(),
+  });
+  if (error) throw new Error("COD could not be reconciled. Recount the exact cash amount.");
+}
+
+export async function updateOpsLaunchCheck(input: {
+  checkKey: string;
+  status: "blocked" | "in_progress" | "passed";
+  evidenceNote: string;
+}) {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error("Pilot backend is not configured.");
+  const { error } = await supabase.rpc("ops_update_launch_check", {
+    p_check_key: input.checkKey,
+    p_status: input.status,
+    p_evidence_note: input.evidenceNote.trim(),
+  });
+  if (error) throw new Error("The launch gate could not be updated.");
 }
 
 export async function reviewOpsApplication(input: {

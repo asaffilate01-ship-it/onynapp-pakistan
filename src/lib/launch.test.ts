@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { nextRiderActions, parseMenuCsv, validatePartnerApplication } from "./launch";
+import {
+  codDifferencePaisa,
+  nextRiderActions,
+  parseMenuCsv,
+  requiredRiderEvidence,
+  validatePartnerApplication,
+} from "./launch";
 
 describe("controlled launch helpers", () => {
   it("validates a Pakistan partner application", () => {
@@ -47,5 +53,19 @@ describe("controlled launch helpers", () => {
   it("only exposes valid rider state transitions", () => {
     expect(nextRiderActions("offered")).toEqual([{ next: "accepted", label: "Accept delivery" }]);
     expect(nextRiderActions("delivered")).toEqual([]);
+  });
+
+  it("requires identity evidence and a licence for motorbike riders", () => {
+    expect(requiredRiderEvidence("bicycle").map((item) => item.kind)).toEqual([
+      "cnic_front",
+      "cnic_back",
+    ]);
+    expect(requiredRiderEvidence("motorbike").map((item) => item.kind)).toContain("licence_front");
+  });
+
+  it("calculates COD discrepancies in paisa without floating drift", () => {
+    expect(codDifferencePaisa(89900, "899")).toBe(0);
+    expect(codDifferencePaisa(89900, "900")).toBe(100);
+    expect(codDifferencePaisa(89900, "not cash")).toBeNull();
   });
 });

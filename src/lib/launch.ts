@@ -83,3 +83,22 @@ export function nextRiderActions(status: string): Array<{ next: string; label: s
   }
   return [];
 }
+
+export function requiredRiderEvidence(vehicleType: string): Array<{
+  kind: "cnic_front" | "cnic_back" | "licence_front";
+  label: string;
+}> {
+  const identity = [
+    { kind: "cnic_front" as const, label: "CNIC front" },
+    { kind: "cnic_back" as const, label: "CNIC back" },
+  ];
+  return vehicleType === "motorbike"
+    ? [...identity, { kind: "licence_front" as const, label: "Driving licence" }]
+    : identity;
+}
+
+export function codDifferencePaisa(expectedPaisa: number, receivedRupees: string): number | null {
+  const amount = Number(receivedRupees);
+  if (!Number.isFinite(amount) || amount < 0) return null;
+  return Math.round(amount * 100) - expectedPaisa;
+}

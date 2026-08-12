@@ -1,5 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Bike, Building2, Headphones, RefreshCw, Send, ShieldAlert, Users } from "lucide-react";
+import {
+  Banknote,
+  BellRing,
+  Bike,
+  Building2,
+  ClipboardCheck,
+  ExternalLink,
+  FileCheck2,
+  Headphones,
+  RefreshCw,
+  Send,
+  ShieldAlert,
+  Users,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { LaunchHero, LaunchShell, StatusMessage } from "../components/launch-shell";
 import { PilotAuth } from "../components/pilot-auth";
@@ -7,8 +20,12 @@ import {
   assignOpsDelivery,
   getCurrentCustomer,
   getOpsLaunchSnapshot,
+  getOpsRiderDocumentUrl,
   isPilotBackendConfigured,
+  reconcileOpsCodJob,
+  reviewOpsRiderDocument,
   reviewOpsApplication,
+  updateOpsLaunchCheck,
   updateOpsSupportCase,
   type OpsLaunchSnapshot,
 } from "../lib/supabase";
@@ -35,6 +52,8 @@ function OpsPage() {
   const [reviewNote, setReviewNote] = useState("");
   const [resolution, setResolution] = useState("");
   const [riderSelections, setRiderSelections] = useState<Record<string, string>>({});
+  const [codAmounts, setCodAmounts] = useState<Record<string, string>>({});
+  const [gateNotes, setGateNotes] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     if (!configured) {
@@ -58,7 +77,11 @@ function OpsPage() {
   }, [load]);
 
   const approvedRiders = useMemo(
-    () => snapshot?.rider_applications.filter((row) => value(row, "status") === "approved") ?? [],
+    () =>
+      snapshot?.rider_applications.filter(
+        (row) =>
+          value(row, "status") === "approved" && value(row, "verification_status") === "verified",
+      ) ?? [],
     [snapshot],
   );
 
@@ -94,6 +117,53 @@ function OpsPage() {
       await load();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Delivery could not be assigned.");
+    }
+  }
+
+  async function openEvidence(path: string) {
+    try {
+      const url = await getOpsRiderDocumentUrl(path);
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Evidence could not be opened.");
+    }
+  }
+  async function reviewDocument(id: string, status: "verified" | "rejected") {
+    try {
+      await reviewOpsRiderDocument({ documentId: id, status, note: reviewNote });
+      setMessage(`Rider evidence ${status}.`);
+      setReviewNote("");
+      await load();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Evidence review could not be saved.");
+    }
+  }
+  async function reconcile(jobId: string, expectedPaisa: number) {
+    const entered = Number(codAmounts[jobId] ?? expectedPaisa / 100);
+    if (!Number.isFinite(entered) || entered < 0) {
+      setMessage("Enter the cash physically counted at handover.");
+      return;
+    }
+    try {
+      await reconcileOpsCodJob({
+        jobId,
+        receivedPaisa: Math.round(entered * 100),
+        note: resolution,
+      });
+      setMessage("COD handover reconciled to the paisa.");
+      setResolution("");
+      await load();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "COD could not be reconciled.");
+    }
+  }
+  async function updateGate(key: string, status: "blocked" | "in_progress" | "passed") {
+    try {
+      await updateOpsLaunchCheck({ checkKey: key, status, evidenceNote: gateNotes[key] ?? "" });
+      setMessage(`Launch gate moved to ${status.replace("_", " ")}.`);
+      await load();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Launch gate could not be updated.");
     }
   }
 
@@ -148,6 +218,10 @@ function OpsPage() {
             <div>
               <small>ACTIVE DELIVERIES</small>
               <strong>{snapshot.delivery_jobs.length}</strong>
+            </div>
+            <div>
+              <small>SMS DEAD LETTER</small>
+              <strong>{snapshot.notification_health.dead_letter}</strong>
             </div>
             <button type="button" onClick={load}>
               <RefreshCw /> Refresh
@@ -251,6 +325,7 @@ function OpsPage() {
                           Licence declared:{" "}
                           {value(row, "has_valid_licence") === "true" ? "yes" : "no"}
                         </em>
+                        <em>Evidence: {value(row, "verification_status").replaceAll("_", " ")}</em>
                       </span>
                       <b className={`case-status ${value(row, "status")}`}>
                         {value(row, "status")}
@@ -275,6 +350,45 @@ function OpsPage() {
                         >
                           Reject
                         </button>
+                      </div>
+                      <div className="ops-evidence-list">
+                        {snapshot.verification_documents
+                          .filter(
+                            (document) =>
+                              value(document, "rider_application_id") === value(row, "id"),
+                          )
+                          .map((document) => (
+                            <span key={value(document, "id")}>
+                              <FileCheck2 />
+                              <b>{value(document, "document_kind").replaceAll("_", " ")}</b>
+                              <small className={`case-status ${value(document, "status")}`}>
+                                {value(document, "status")}
+                              </small>
+                              <button
+                                type="button"
+                                onClick={() => void openEvidence(value(document, "object_path"))}
+                              >
+                                <ExternalLink /> View
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void reviewDocument(value(document, "id"), "verified")
+                                }
+                              >
+                                Verify
+                              </button>
+                              <button
+                                type="button"
+                                className="danger"
+                                onClick={() =>
+                                  void reviewDocument(value(document, "id"), "rejected")
+                                }
+                              >
+                                Reject
+                              </button>
+                            </span>
+                          ))}
                       </div>
                     </article>
                   ))
@@ -327,6 +441,125 @@ function OpsPage() {
               ) : (
                 <p className="empty-copy">No open support cases.</p>
               )}
+            </div>
+          </section>
+          <section className="ops-section ops-health-section">
+            <div className="workspace-section-header">
+              <div>
+                <span className="section-kicker">DELIVERY HEALTH</span>
+                <h2>Notification outbox</h2>
+              </div>
+              <BellRing />
+            </div>
+            <div className="ops-health-grid">
+              <article>
+                <small>QUEUED / RETRYING</small>
+                <strong>{snapshot.notification_health.queued}</strong>
+              </article>
+              <article>
+                <small>CLAIMED BY WORKER</small>
+                <strong>{snapshot.notification_health.sending}</strong>
+              </article>
+              <article className={snapshot.notification_health.dead_letter ? "danger" : ""}>
+                <small>NEEDS OPERATOR</small>
+                <strong>{snapshot.notification_health.dead_letter}</strong>
+              </article>
+            </div>
+          </section>
+          {snapshot.staff_role !== "support" && (
+            <section className="ops-section">
+              <div className="workspace-section-header">
+                <div>
+                  <span className="section-kicker">CASH CONTROL</span>
+                  <h2>COD handover and reconciliation</h2>
+                </div>
+                <Banknote />
+              </div>
+              <div className="ops-list cod-reconciliation-list">
+                {snapshot.cod_reconciliation.length ? (
+                  snapshot.cod_reconciliation.map((row) => {
+                    const jobId = value(row, "id");
+                    const expected = Number(row.cash_collected_paisa ?? 0);
+                    return (
+                      <article key={jobId}>
+                        <span>
+                          <strong>{value(row, "reference")}</strong>
+                          <small>{value(row, "rider_name") || value(row, "rider_id")}</small>
+                          <em>Expected: Rs. {(expected / 100).toLocaleString("en-PK")}</em>
+                        </span>
+                        <label>
+                          <span>Cash physically counted (Rs.)</span>
+                          <input
+                            inputMode="decimal"
+                            value={codAmounts[jobId] ?? (expected / 100).toString()}
+                            onChange={(event) =>
+                              setCodAmounts({ ...codAmounts, [jobId]: event.target.value })
+                            }
+                          />
+                        </label>
+                        <button type="button" onClick={() => void reconcile(jobId, expected)}>
+                          <Banknote /> Confirm exact handover
+                        </button>
+                      </article>
+                    );
+                  })
+                ) : (
+                  <p className="empty-copy">No rider cash is awaiting handover.</p>
+                )}
+              </div>
+            </section>
+          )}
+          <section className="ops-section">
+            <div className="workspace-section-header">
+              <div>
+                <span className="section-kicker">RELEASE CONTROL</span>
+                <h2>Evidence-backed launch gates</h2>
+              </div>
+              <ClipboardCheck />
+            </div>
+            <div className="launch-check-grid">
+              {snapshot.launch_checks.map((row) => {
+                const key = value(row, "check_key");
+                return (
+                  <article key={key}>
+                    <header>
+                      <small>{value(row, "category")}</small>
+                      <b className={`case-status ${value(row, "status")}`}>
+                        {value(row, "status").replaceAll("_", " ")}
+                      </b>
+                    </header>
+                    <h3>{value(row, "title")}</h3>
+                    {value(row, "evidence_note") && <p>{value(row, "evidence_note")}</p>}
+                    {snapshot.staff_role !== "support" && (
+                      <>
+                        <textarea
+                          rows={2}
+                          value={gateNotes[key] ?? ""}
+                          onChange={(event) =>
+                            setGateNotes({ ...gateNotes, [key]: event.target.value })
+                          }
+                          placeholder="Evidence, ticket or test result"
+                        />
+                        <div>
+                          <button type="button" onClick={() => void updateGate(key, "in_progress")}>
+                            Start
+                          </button>
+                          <button type="button" onClick={() => void updateGate(key, "passed")}>
+                            Pass with evidence
+                          </button>
+                          <button
+                            className="danger"
+                            type="button"
+                            onClick={() => void updateGate(key, "blocked")}
+                          >
+                            Block
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </article>
+                );
+              })}
             </div>
           </section>
           {snapshot.staff_role !== "support" && (

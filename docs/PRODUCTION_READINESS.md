@@ -4,19 +4,19 @@ Updated: 11 August 2026
 
 ## Executive assessment
 
-The repository began as a blank TanStack/Lovable starter. The local Phase 4A package now contains a coherent customer marketplace, protected COD transaction path, restaurant operations, customer support, partner/rider onboarding and manual dispatch pilot, but it still needs isolated staging acceptance before real public orders.
+The repository began as a blank TanStack/Lovable starter. The local Phase 4B package now contains a coherent customer marketplace, protected COD transaction and reconciliation path, restaurant operations, customer support, secure rider verification, partner/rider onboarding, notification workers and manual dispatch pilot, but it still needs isolated staging and provider acceptance before real public orders.
 
 | Area                            | Current readiness | Evidence and remaining condition                                                                                                                                                                                                   |
 | ------------------------------- | ----------------: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Customer UI/UX                  |               93% | Discovery, fulfilment, modifiers, basket, checkout, account, orders, notifications, help and responsive navigation exist. Urdu, accessibility and observed usability evidence remain.                                              |
-| Customer ordering functionality |               82% | Catalog/address/COD/tracking/cancellation/support, server pricing, serviceability, hours and modifier validation exist. Staging evidence, cash refunds and delivery-provider evidence remain.                                      |
+| Customer UI/UX                  |               94% | Discovery, fulfilment, modifiers, basket, checkout, account, orders, notifications, help and responsive navigation exist. Urdu, accessibility and observed usability evidence remain.                                              |
+| Customer ordering functionality |               86% | Catalog/address/COD/tracking/cancellation/support, server pricing, serviceability, hours, modifier validation and protected OTP routing exist. Staging, provider and cash-refund evidence remain.                                   |
 | Restaurant/ePOS/KDS             |               65% | Live order board/KDS, transitions, schedule/closure, capacity, availability and audited CSV import exist. Modifier authoring UI, ePOS, printers and reconciliation remain.                                                         |
-| Rider and dispatch              |               45% | Application, approval gate, manual assignment, pickup, delivery proof and exact COD transitions exist. Secure KYC evidence, availability, navigation, safety escalation, earnings and reconciliation evidence remain.              |
+| Rider and dispatch              |               68% | Private evidence upload/review, verification-gated approval/dispatch, pickup, proof, exact COD and handover reconciliation exist. Availability, navigation, safety escalation, earnings and staging evidence remain.               |
 | Sales-agent portal              |               22% | Protected application and operations review exist. Lead ownership, duplicate protection, onboarding evidence and commission ledger remain.                                                                                         |
-| Admin and operations            |               45% | Separate platform RBAC, onboarding queues, support triage and manual dispatch exist. Fraud, cash ledger, refunds, audit export, configuration and four-eyes approvals remain.                                                      |
-| Security and privacy            |               70% | RLS, narrow server RPCs, separate platform/vendor roles, ownership checks, server-owned prices/status/COD and audit events exist locally. Staging denial, retention approval and independent testing remain.                       |
-| Reliability and operations      |               23% | Production builds, route smoke and durable notification queue foundations exist. Monitoring, backups, restore drill, worker alerting, SLOs, cash reconciliation and incident playbooks remain.                                     |
-| Overall launch readiness        |           **65%** | Phase 4A provides the source-level workflow for an invite-only Lahore COD pilot. Real orders remain blocked on staging acceptance, staffed operations, rider verification, legal approval, monitoring and reconciliation evidence. |
+| Admin and operations            |               65% | Separate platform RBAC, evidence review, onboarding, support, notification health, dispatch, cash reconciliation and evidence-backed release gates exist. Refunds, audit export and four-eyes approvals remain.                    |
+| Security and privacy            |               79% | RLS, narrow RPCs, private evidence storage, verified-rider gates, OTP rate limiting, separate roles and server-owned prices/status/COD exist locally. Staging denial, retention approval and independent testing remain.           |
+| Reliability and operations      |               42% | Production builds, route smoke, atomic notification claims/retries/dead letters and release gates exist. Provider alerting, monitoring, backups, restore drill, SLOs and incident playbooks remain.                                  |
+| Overall launch readiness        |           **74%** | Phase 4B provides the source-level controls for an invite-only Lahore COD pilot. Real orders remain blocked on staging/provider acceptance, staffed operations, legal approval, monitoring and passed launch-gate evidence.        |
 
 Readiness percentages are delivery estimates, not certifications. “100%” requires passed acceptance evidence, not only source code.
 
@@ -151,7 +151,7 @@ Exit: 20 pilot vendors can complete real COD orders end-to-end in staging with n
 - Customer live catalog, OTP-gated COD ordering, service-zone enforcement, tracking and cancellation — Phase 3C candidate built
 - Modifier selection, server pricing, opening hours, holiday mode and in-app customer notifications — Phase 3D candidate built
 - Public/legal/help pages, customer account/support, partner/rider applications, manual dispatch and menu import — Phase 4A candidate built
-- Trusted notification delivery worker, secure rider evidence, staffed operating procedures and COD reconciliation — remaining before pilot exit
+- Trusted notification delivery worker, secure rider evidence and COD reconciliation — Phase 4B candidate built; provider acceptance and staffed procedures remain
 - ePOS core, cash shifts, receipt/thermal printer path and reconciliation
 - Manual dispatch console and rider web/PWA workflow
 - Subscription billing, vendor statements and agent onboarding/commission ledger
