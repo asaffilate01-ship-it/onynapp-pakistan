@@ -1,5 +1,5 @@
 import { CheckCircle2, KeyRound, LoaderCircle, Smartphone } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { requestPakistanOtp, verifyPakistanOtp } from "../lib/supabase";
 
 export function PilotAuth({
@@ -14,6 +14,16 @@ export function PilotAuth({
   const [token, setToken] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = window.setInterval(
+      () => setCooldown((seconds) => Math.max(0, seconds - 1)),
+      1000,
+    );
+    return () => window.clearInterval(timer);
+  }, [cooldown]);
 
   async function sendCode() {
     setBusy(true);
@@ -25,7 +35,21 @@ export function PilotAuth({
       return;
     }
     setSentPhone(result.phone);
+    setCooldown(60);
     setMessage("A six-digit code has been sent to your mobile.");
+  }
+
+  async function resendCode() {
+    if (cooldown > 0) return;
+    setBusy(true);
+    const result = await requestPakistanOtp(sentPhone);
+    setBusy(false);
+    if (!result.ok) {
+      setMessage(result.message);
+      return;
+    }
+    setCooldown(60);
+    setMessage("A new six-digit code has been sent.");
   }
 
   async function verifyCode() {
@@ -90,10 +114,19 @@ export function PilotAuth({
           <button
             className="text-button"
             type="button"
+            onClick={resendCode}
+            disabled={busy || cooldown > 0}
+          >
+            {cooldown > 0 ? `Resend code in ${cooldown}s` : "Resend secure code"}
+          </button>
+          <button
+            className="text-button"
+            type="button"
             onClick={() => {
               setSentPhone("");
               setToken("");
               setMessage("");
+              setCooldown(0);
             }}
           >
             Use another number

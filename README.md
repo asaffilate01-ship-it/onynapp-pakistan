@@ -6,7 +6,7 @@ The commercial model is designed around a predictable monthly vendor subscriptio
 
 ## Current build
 
-This repository now contains a responsive, production-buildable Phase 4A controlled-launch candidate:
+This repository now contains a responsive, production-buildable Phase 4B controlled-launch candidate:
 
 - Pakistan-localised restaurant and home-chef discovery
 - Onyn-branded Food, Grocery, Pharmacy and Courier service switcher with non-launch services clearly gated
@@ -22,7 +22,7 @@ This repository now contains a responsive, production-buildable Phase 4A control
 - In-app order notifications with protected read state and an SMS delivery outbox foundation
 - Immediate pre-acceptance cancellation plus auditable support review after acceptance
 - Mobile navigation and responsive desktop/tablet/mobile layouts
-- Customer mobile OTP entry screen ready for a real authentication service
+- Customer mobile OTP routed through a server-side Pakistan number/IP rate limiter with a resend cooldown
 - Restaurant, rider, supplier, sales-agent and operations entry points
 - Global CSP, frame protection, MIME sniffing protection, permissions and referrer headers
 - CI tests, build, lint, type checks and production dependency audit workflow
@@ -48,8 +48,13 @@ This repository now contains a responsive, production-buildable Phase 4A control
 - Lahore rider application, assigned-job, pickup, proof-of-delivery and exact-COD workflow
 - Separately authorised platform operations console for onboarding, support and manual dispatch
 - Owner/manager CSV menu import with validation, server transaction and audit record
+- Private rider CNIC/licence evidence upload with file limits, short-lived staff access and human review
+- Rider approval and dispatch blocked until required identity/licence evidence is verified
+- Append-only COD collection/handover ledger and exact operations reconciliation
+- Trusted SMS outbox worker with atomic claiming, exponential retry and dead-letter visibility
+- Evidence-backed operations launch checklist covering security, finance, legal and reliability gates
 
-Without a configured Supabase staging project the marketplace and restaurant workspace remain visibly labelled demo data and transactional routes stay disabled. With staging configured, Phase 4A can operate an invite-only Lahore COD workflow from customer order through restaurant preparation, manual dispatch and rider delivery. Every branch must save its seven-day schedule before it can receive orders. Online payments remain outside the pilot.
+Without a configured Supabase staging project the marketplace and restaurant workspace remain visibly labelled demo data and transactional routes stay disabled. With staging configured, Phase 4B can operate an invite-only Lahore COD workflow from customer order through restaurant preparation, verified-rider dispatch, delivery and cash handover. Every branch must save its seven-day schedule before it can receive orders. A Pakistan SMS provider, operational owners and staging acceptance evidence are still required before real orders. Online payments remain outside the pilot.
 
 ## Development
 

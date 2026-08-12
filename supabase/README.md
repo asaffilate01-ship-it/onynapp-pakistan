@@ -40,3 +40,17 @@ Phase 4A adds separately authorised platform operations, partner/rider applicati
 5. Prove exact COD and a proof note are required before a delivery can complete.
 6. Keep CNIC/licence images out of public forms; connect an approved encrypted verification provider or restricted document workflow before rider activation.
 7. Menu CSV imports accept 1–200 simple rows and are atomic. Review item names, categories and prices before import.
+
+Phase 4B adds private rider evidence, verified-rider dispatch enforcement, an append-only COD ledger, exact cash handover, OTP abuse controls, a trusted notification worker and evidence-backed launch gates. After applying `20260811203000_launch_hardening.sql`:
+
+1. Deploy both Edge Functions: `supabase functions deploy request-otp` and `supabase functions deploy process-notifications`.
+2. Set `PUBLIC_APP_ORIGINS` to the comma-separated production/staging origins and set a random 32-byte `OTP_RATE_LIMIT_SECRET`. The browser now requests SMS OTP only through `request-otp`.
+3. Configure `CRON_SECRET`, `SMS_GATEWAY_URL`, `SMS_GATEWAY_TOKEN` and `SMS_SENDER_ID`. Schedule an authenticated POST to `process-notifications` every minute with `x-cron-secret`. Adapt the worker's provider request/response fields to the contracted Pakistan SMS gateway before enabling the schedule.
+4. Keep `SUPABASE_SERVICE_ROLE_KEY`, gateway tokens, rate-limit salt and cron secret in Edge Function secrets only. None may use a `VITE_*` name.
+5. Move a rider to `screening`; the rider must upload CNIC front/back and, for a motorbike, the driving licence. Operations must inspect and verify every required document before approval or dispatch can succeed.
+6. Confirm the `rider-verification` bucket is private. Prove a customer, another rider, support staff and vendor staff cannot read its objects or metadata. Confirm operations receives only five-minute signed evidence URLs.
+7. Complete one delivery with exact COD, then count the physical handover in `/ops`. Prove the collection and negative handover entries net to zero and cannot be repeated.
+8. Force SMS gateway failures and prove retry scheduling, the five-attempt dead-letter transition and operations visibility. Confirm browser roles cannot claim or complete outbox rows.
+9. Pass a launch check only with a traceable test result, ticket or approval in its evidence note. The seeded checks are blocked by default.
+
+Phase 4B deliberately does not seed staff, approve riders, mark release gates passed or select an SMS provider. Those are controlled deployment and operational decisions.
