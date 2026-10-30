@@ -1,15 +1,23 @@
-# Onyn Pakistan
+# Dishbee+ Pakistan
 
-Onyn is a Pakistan-only food delivery and ePOS marketplace for customers, restaurants, home chefs, riders and local sales partners.
+Dishbee+ is a Pakistan-first food delivery and restaurant-operations marketplace for customers, restaurants, home chefs, riders and local sales partners. This Phase 8 source uses the broader Onyn repository as a product and workflow reference, Dishbee One as the EPOS/KDS authority, and Pakistan-specific launch controls.
 
-The commercial model is designed around a predictable monthly vendor subscription rather than an Onyn sales commission on every order. Payment processing, delivery, hardware and subscription charges must still be disclosed clearly in the final partner agreement.
+The commercial model is designed around a predictable monthly vendor subscription rather than a Dishbee+ sales commission on every order. Payment processing, delivery, hardware and subscription charges must still be disclosed clearly in the final partner agreement.
 
 ## Current build
 
-This repository now contains a responsive, production-buildable Phase 4B controlled-launch candidate:
+This repository now contains a responsive, production-buildable Phase 8 controlled-launch candidate:
+
+- A Dishbee+ cinematic Pakistan landing page informed by the Onyn product system, with honest Lahore launch scope
+- A dedicated `/order` journey so marketing, ordering and partner acquisition no longer compete on one screen
+- A conversion-focused `/for-business` journey with a clearly caveated PKR commission-leakage calculator
+- A consistent Dishbee+ navy-and-amber wordmark, responsive launch navigation and retained high-contrast marketplace UI
+- Private, authenticated restaurant favourites that persist across devices
+- Verified-order star ratings with moderation for optional written reviews
+- Safe repeat ordering that always revalidates current menu items, options, prices, hours and serviceability
 
 - Pakistan-localised restaurant and home-chef discovery
-- Onyn-branded Food, Grocery, Pharmacy and Courier service switcher with non-launch services clearly gated
+- Dishbee+-branded Food, Grocery, Pharmacy and Courier service switcher with non-launch services clearly gated
 - Functional delivery/collection choice with matching fee, checkout and tracking language
 - Controlled Gulberg III and DHA Phase 5 Lahore delivery areas; Islamabad and Karachi clearly marked coming soon
 - Search, cuisine filters, favourites and restaurant menus
@@ -53,8 +61,11 @@ This repository now contains a responsive, production-buildable Phase 4B control
 - Append-only COD collection/handover ledger and exact operations reconciliation
 - Trusted SMS outbox worker with atomic claiming, exponential retry and dead-letter visibility
 - Evidence-backed operations launch checklist covering security, finance, legal and reliability gates
+- Signed, idempotent server-to-server order bridge into Dishbee One EPOS/KDS
+- Branch/menu mapping gates, leased retries, dead-letter handling and explicit acknowledgements
+- Private Dishbee One handoff health and operator recovery controls
 
-Without a configured Supabase staging project the marketplace and restaurant workspace remain visibly labelled demo data and transactional routes stay disabled. With staging configured, Phase 4B can operate an invite-only Lahore COD workflow from customer order through restaurant preparation, verified-rider dispatch, delivery and cash handover. Every branch must save its seven-day schedule before it can receive orders. A Pakistan SMS provider, operational owners and staging acceptance evidence are still required before real orders. Online payments remain outside the pilot.
+Without a configured Supabase staging project the marketplace and restaurant workspace remain visibly labelled demo data and transactional routes stay disabled. With staging configured, Phase 8 can operate an invite-only Lahore COD workflow from customer order through restaurant preparation, verified-rider dispatch, delivery, cash handover and verified-order feedback. Dishbee One dispatch must remain disabled until its receiver verifies signatures and proves duplicate-safe retries. Every branch must save its seven-day schedule before it can receive orders. A Pakistan SMS provider, operational owners and staging acceptance evidence are still required before real orders. Online payments remain outside the pilot.
 
 ## Development
 
@@ -73,7 +84,7 @@ npm run check
 
 ## Product and launch status
 
-See [docs/PRODUCTION_READINESS.md](docs/PRODUCTION_READINESS.md) for the go-live plan, [docs/NEXT_PHASE_REFERENCE_MATRIX.md](docs/NEXT_PHASE_REFERENCE_MATRIX.md) for the current UK-to-Pakistan feature mapping, [docs/ONYN_REFERENCE_AUDIT.md](docs/ONYN_REFERENCE_AUDIT.md) for the parent comparison and [docs/LIVE_DEPLOYMENT_AUDIT.md](docs/LIVE_DEPLOYMENT_AUDIT.md) for the Lovable review.
+See [docs/PHASE8_DISHBEE_ONE_HANDOFF.md](docs/PHASE8_DISHBEE_ONE_HANDOFF.md) for the signed EPOS/KDS bridge, [docs/PHASE7_ONYN_DISHBEE_OPERATIONS_HANDOFF.md](docs/PHASE7_ONYN_DISHBEE_OPERATIONS_HANDOFF.md) for rider and operations integration, and [docs/PRODUCTION_READINESS.md](docs/PRODUCTION_READINESS.md) for the remaining go-live plan.
 
 ## Pilot backend
 

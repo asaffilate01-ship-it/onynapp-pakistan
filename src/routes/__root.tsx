@@ -77,17 +77,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Onyn Pakistan" },
+      { title: "Dishbee+ Pakistan" },
       { name: "description", content: "Pakistan's fair local food delivery marketplace." },
-      { name: "author", content: "Onyn Pakistan" },
-      { name: "theme-color", content: "#116b45" },
-      { property: "og:title", content: "Onyn Pakistan" },
+      { name: "author", content: "Dishbee+ Pakistan" },
+      { name: "theme-color", content: "#0b1728" },
+      { property: "og:title", content: "Dishbee+ Pakistan" },
       { property: "og:description", content: "Local food. Fair delivery." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
     links: [
-      { rel: "icon", href: "/onyn-mark.svg", type: "image/svg+xml" },
+      { rel: "icon", href: "/dishbee-plus-mark.svg", type: "image/svg+xml" },
       { rel: "manifest", href: "/manifest.webmanifest" },
       {
         rel: "stylesheet",

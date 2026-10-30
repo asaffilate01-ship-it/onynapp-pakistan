@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Dishbee Plus bee and cloche mark">
+  <defs>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFD84A"/>
+      <stop offset="1" stop-color="#F4B400"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="30" fill="#0B1728"/>
+  <path d="M42 39C29 28 18 27 13 31c4 16 13 24 28 25M39 56c-14-5-23-2-26 3 7 12 17 16 29 13" fill="url(#gold)" stroke="#F4B400" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M51 84c2 16 10 26 18 32 8-6 15-16 17-32Z" fill="url(#gold)"/>
+  <path d="M53 88h31M57 100h23" stroke="#0B1728" stroke-width="7" stroke-linecap="round"/>
+  <path d="M42 77h55c0-18-12-32-28-32S42 59 42 77Z" fill="url(#gold)"/>
+  <path d="M69 44v-7" stroke="#F4B400" stroke-width="7" stroke-linecap="round"/>
+  <circle cx="69" cy="31" r="6" fill="url(#gold)"/>
+  <path d="M36 77h66a5 5 0 0 1 0 10H36a5 5 0 0 1 0-10Z" fill="url(#gold)"/>
+  <path d="M58 71c2-8 7-13 14-15" fill="none" stroke="#FFF5C2" stroke-width="4" stroke-linecap="round"/>
+</svg>

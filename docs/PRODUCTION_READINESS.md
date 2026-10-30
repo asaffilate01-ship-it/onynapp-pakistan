@@ -1,26 +1,26 @@
-# Onyn Pakistan — production readiness and go-live plan
+# Dishbee+ Pakistan — production readiness and go-live plan
 
-Updated: 11 August 2026
+Updated: 12 August 2026
 
 ## Executive assessment
 
-The repository began as a blank TanStack/Lovable starter. The local Phase 4B package now contains a coherent customer marketplace, protected COD transaction and reconciliation path, restaurant operations, customer support, secure rider verification, partner/rider onboarding, notification workers and manual dispatch pilot, but it still needs isolated staging and provider acceptance before real public orders.
+The repository began as a blank TanStack/Lovable starter. The local Phase 5 package now adds a coherent Onyn brand and navigation layer, separate customer and partner acquisition journeys, private favourites, verified-order ratings and safe repeat ordering to the protected COD and reconciliation path. It still needs isolated staging, provider acceptance and staffed operations before real public orders.
 
-| Area                            | Current readiness | Evidence and remaining condition                                                                                                                                                                                                   |
-| ------------------------------- | ----------------: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Customer UI/UX                  |               94% | Discovery, fulfilment, modifiers, basket, checkout, account, orders, notifications, help and responsive navigation exist. Urdu, accessibility and observed usability evidence remain.                                              |
-| Customer ordering functionality |               86% | Catalog/address/COD/tracking/cancellation/support, server pricing, serviceability, hours, modifier validation and protected OTP routing exist. Staging, provider and cash-refund evidence remain.                                   |
-| Restaurant/ePOS/KDS             |               65% | Live order board/KDS, transitions, schedule/closure, capacity, availability and audited CSV import exist. Modifier authoring UI, ePOS, printers and reconciliation remain.                                                         |
-| Rider and dispatch              |               68% | Private evidence upload/review, verification-gated approval/dispatch, pickup, proof, exact COD and handover reconciliation exist. Availability, navigation, safety escalation, earnings and staging evidence remain.               |
-| Sales-agent portal              |               22% | Protected application and operations review exist. Lead ownership, duplicate protection, onboarding evidence and commission ledger remain.                                                                                         |
-| Admin and operations            |               65% | Separate platform RBAC, evidence review, onboarding, support, notification health, dispatch, cash reconciliation and evidence-backed release gates exist. Refunds, audit export and four-eyes approvals remain.                    |
-| Security and privacy            |               79% | RLS, narrow RPCs, private evidence storage, verified-rider gates, OTP rate limiting, separate roles and server-owned prices/status/COD exist locally. Staging denial, retention approval and independent testing remain.           |
-| Reliability and operations      |               42% | Production builds, route smoke, atomic notification claims/retries/dead letters and release gates exist. Provider alerting, monitoring, backups, restore drill, SLOs and incident playbooks remain.                                  |
-| Overall launch readiness        |           **74%** | Phase 4B provides the source-level controls for an invite-only Lahore COD pilot. Real orders remain blocked on staging/provider acceptance, staffed operations, legal approval, monitoring and passed launch-gate evidence.        |
+| Area                            | Current readiness | Evidence and remaining condition                                                                                                                                                                                                                      |
+| ------------------------------- | ----------------: | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Customer UI/UX                  |               97% | Brand-led landing, focused ordering, partner journey, discovery, fulfilment, modifiers, basket, checkout, account, favourites, ratings, orders and responsive navigation exist. Urdu, accessibility and observed usability evidence remain.           |
+| Customer ordering functionality |               90% | Catalog/address/COD/tracking/cancellation/support, repeat ordering, server pricing, serviceability, hours, modifier validation and protected OTP routing exist. Staging, provider and cash-refund evidence remain.                                    |
+| Restaurant/ePOS/KDS             |               65% | Live order board/KDS, transitions, schedule/closure, capacity, availability and audited CSV import exist. Modifier authoring UI, ePOS, printers and reconciliation remain.                                                                            |
+| Rider and dispatch              |               68% | Private evidence upload/review, verification-gated approval/dispatch, pickup, proof, exact COD and handover reconciliation exist. Availability, navigation, safety escalation, earnings and staging evidence remain.                                  |
+| Sales-agent portal              |               22% | Protected application and operations review exist. Lead ownership, duplicate protection, onboarding evidence and commission ledger remain.                                                                                                            |
+| Admin and operations            |               65% | Separate platform RBAC, evidence review, onboarding, support, notification health, dispatch, cash reconciliation and evidence-backed release gates exist. Refunds, audit export and four-eyes approvals remain.                                       |
+| Security and privacy            |               80% | RLS, narrow RPCs, private favourites, verified-order review ownership, private evidence, verified-rider gates, OTP rate limiting and server-owned prices/status/COD exist locally. Staging denial, retention approval and independent testing remain. |
+| Reliability and operations      |               42% | Production builds, route smoke, atomic notification claims/retries/dead letters and release gates exist. Provider alerting, monitoring, backups, restore drill, SLOs and incident playbooks remain.                                                   |
+| Overall launch readiness        |           **78%** | Phase 5 improves source-level acquisition, trust and retention for an invite-only Lahore COD pilot. Real orders remain blocked on staging/provider acceptance, staffed operations, legal approval, monitoring and passed launch-gate evidence.        |
 
 Readiness percentages are delivery estimates, not certifications. “100%” requires passed acceptance evidence, not only source code.
 
-The detailed comparison with the parent repository and live product is in [ONYN_REFERENCE_AUDIT.md](./ONYN_REFERENCE_AUDIT.md). Its conclusion is to reuse the parent brand and validated workflow ideas, but not inherit its backend or deployment posture without remediation.
+The Phase 5 visual and journey comparison with the parent repository and live product is in [ONYN_UK_UI_REFERENCE_AUDIT.md](./ONYN_UK_UI_REFERENCE_AUDIT.md). Its conclusion is to reuse the parent brand theatre and role-specific journeys, while retaining Pakistan's stricter transaction and launch controls.
 
 The implementation-level next-phase mapping is in [NEXT_PHASE_REFERENCE_MATRIX.md](./NEXT_PHASE_REFERENCE_MATRIX.md).
 
@@ -152,6 +152,7 @@ Exit: 20 pilot vendors can complete real COD orders end-to-end in staging with n
 - Modifier selection, server pricing, opening hours, holiday mode and in-app customer notifications — Phase 3D candidate built
 - Public/legal/help pages, customer account/support, partner/rider applications, manual dispatch and menu import — Phase 4A candidate built
 - Trusted notification delivery worker, secure rider evidence and COD reconciliation — Phase 4B candidate built; provider acceptance and staffed procedures remain
+- Onyn brand landing, separate ordering/business journeys, persistent favourites, verified-order ratings and safe repeat ordering — Phase 5 candidate built
 - ePOS core, cash shifts, receipt/thermal printer path and reconciliation
 - Manual dispatch console and rider web/PWA workflow
 - Subscription billing, vendor statements and agent onboarding/commission ledger

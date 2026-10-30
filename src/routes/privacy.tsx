@@ -3,7 +3,7 @@ import { LockKeyhole } from "lucide-react";
 import { InfoPage } from "../components/info-page";
 
 export const Route = createFileRoute("/privacy")({
-  head: () => ({ meta: [{ title: "Privacy | Onyn Pakistan" }] }),
+  head: () => ({ meta: [{ title: "Privacy | Dishbee+ Pakistan" }] }),
   component: PrivacyPage,
 });
 function PrivacyPage() {
@@ -11,7 +11,7 @@ function PrivacyPage() {
     <InfoPage
       eyebrow="PRIVACY"
       title="Your information, used carefully."
-      description="What the controlled Onyn Pakistan pilot collects, why it is needed and who can access it."
+      description="What the controlled Dishbee+ Pakistan pilot collects, why it is needed and who can access it."
       updated="11 August 2026"
       icon={LockKeyhole}
       notice="This is a product-ready privacy draft, not legal advice. Retention periods, company/controller details and Pakistan counsel approval are launch gates."
@@ -53,7 +53,7 @@ function PrivacyPage() {
         {
           title: "Retention and rights",
           paragraphs: [
-            "We keep data only for an approved operational, legal, fraud-prevention or accounting purpose. Before launch, Onyn must publish exact retention periods and a verified route for access, correction, deletion and complaint requests.",
+            "We keep data only for an approved operational, legal, fraud-prevention or accounting purpose. Before launch, Dishbee+ must publish exact retention periods and a verified route for access, correction, deletion and complaint requests.",
           ],
         },
         {

@@ -1,15 +1,15 @@
 {
-  "name": "Onyn Pakistan",
-  "short_name": "Onyn PK",
+  "name": "Dishbee+ Pakistan",
+  "short_name": "Dishbee+",
   "description": "Local food. Fair delivery. Built for Pakistan.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#f8faf8",
-  "theme_color": "#116b45",
+  "background_color": "#fffaf0",
+  "theme_color": "#0b1728",
   "icons": [
     {
-      "src": "/onyn-mark.svg",
+      "src": "/dishbee-plus-mark.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"

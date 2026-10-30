@@ -1,7 +1,9 @@
 {
-  "application": "onyn-pakistan",
-  "release": "phase-4b-launch-hardening-candidate",
+  "application": "dishbee-plus-pakistan",
+  "release": "phase-8-dishbee-brand-candidate",
   "status": "staging-candidate",
   "live_ordering": "deployment-and-acceptance-required",
-  "scope": "controlled-lahore-cod-pilot"
+  "scope": "controlled-lahore-cod-pilot",
+  "source_readiness_estimate": 78,
+  "validated_tests": 60
 }

@@ -33,7 +33,7 @@ Deno.serve(async (request) => {
   let sent = 0;
   let failed = 0;
   for (const job of jobs ?? []) {
-    const message = `${job.payload?.title ?? "Order update"} · ${job.payload?.reference ?? "Onyn Pakistan"}`;
+    const message = `${job.payload?.title ?? "Order update"} · ${job.payload?.reference ?? "Dishbee+ Pakistan"}`;
     try {
       const response = await fetch(gatewayUrl, {
         method: "POST",

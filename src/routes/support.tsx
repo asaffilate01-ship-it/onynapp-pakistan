@@ -14,7 +14,7 @@ import {
 import type { CustomerOrder } from "../lib/customer-workspace";
 
 export const Route = createFileRoute("/support")({
-  head: () => ({ meta: [{ title: "Customer Support | Onyn Pakistan" }] }),
+  head: () => ({ meta: [{ title: "Customer Support | Dishbee+ Pakistan" }] }),
   component: SupportPage,
 });
 
@@ -91,7 +91,7 @@ function SupportPage() {
         <div>
           <strong>Immediate danger or medical emergency?</strong>
           <span>
-            Contact the appropriate Pakistan emergency service first. Onyn support is not an
+            Contact the appropriate Pakistan emergency service first. Dishbee+ support is not an
             emergency service.
           </span>
         </div>
