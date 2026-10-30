@@ -97,7 +97,7 @@ describe("customer order mapping", () => {
     const orders = mapCustomerOrders([
       {
         id: "order-1",
-        reference: "ONYN-PK-1001",
+        reference: "DISHBEE-PK-1001",
         branch_id: "branch-1",
         branch_name: "Pilot Kitchen",
         status: "preparing",

@@ -3,7 +3,7 @@ import { FileCheck2 } from "lucide-react";
 import { InfoPage } from "../components/info-page";
 
 export const Route = createFileRoute("/terms")({
-  head: () => ({ meta: [{ title: "Customer Terms | Onyn Pakistan" }] }),
+  head: () => ({ meta: [{ title: "Customer Terms | Dishbee+ Pakistan" }] }),
   component: TermsPage,
 });
 function TermsPage() {
@@ -11,7 +11,7 @@ function TermsPage() {
     <InfoPage
       eyebrow="LEGAL"
       title="Customer terms"
-      description="Plain-language pilot terms for ordering food through Onyn Pakistan."
+      description="Plain-language pilot terms for ordering food through Dishbee+ Pakistan."
       updated="11 August 2026"
       icon={FileCheck2}
       notice="These terms are a launch-candidate draft and require approval from qualified Pakistan counsel before public trading."
@@ -19,7 +19,7 @@ function TermsPage() {
         {
           title: "1. The service",
           paragraphs: [
-            "Onyn provides a marketplace connecting customers with independent food businesses and, where offered, delivery riders. The restaurant prepares and supplies the food. Availability is limited to the zones shown at checkout.",
+            "Dishbee+ provides a marketplace connecting customers with independent food businesses and, where offered, delivery riders. The restaurant prepares and supplies the food. Availability is limited to the zones shown at checkout.",
           ],
         },
         {

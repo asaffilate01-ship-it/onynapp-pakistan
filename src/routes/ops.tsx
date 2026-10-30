@@ -8,6 +8,7 @@ import {
   ExternalLink,
   FileCheck2,
   Headphones,
+  Navigation,
   RefreshCw,
   Send,
   ShieldAlert,
@@ -22,18 +23,21 @@ import {
   getOpsLaunchSnapshot,
   getOpsRiderDocumentUrl,
   isPilotBackendConfigured,
+  listOpsRiderPresence,
   reconcileOpsCodJob,
+  retryOpsDishbeeOneHandoff,
   reviewOpsRiderDocument,
   reviewOpsApplication,
   updateOpsLaunchCheck,
   updateOpsSupportCase,
   type OpsLaunchSnapshot,
+  type OpsRiderPresence,
 } from "../lib/supabase";
 
 export const Route = createFileRoute("/ops")({
   head: () => ({
     meta: [
-      { title: "Launch Operations | Onyn Pakistan" },
+      { title: "Launch Operations | Dishbee+ Pakistan" },
       { name: "robots", content: "noindex,nofollow" },
     ],
   }),
@@ -48,6 +52,7 @@ function OpsPage() {
     configured ? "loading" : "denied",
   );
   const [snapshot, setSnapshot] = useState<OpsLaunchSnapshot | null>(null);
+  const [riderPresence, setRiderPresence] = useState<OpsRiderPresence[]>([]);
   const [message, setMessage] = useState("");
   const [reviewNote, setReviewNote] = useState("");
   const [resolution, setResolution] = useState("");
@@ -67,6 +72,11 @@ function OpsPage() {
     }
     try {
       setSnapshot(await getOpsLaunchSnapshot());
+      try {
+        setRiderPresence(await listOpsRiderPresence());
+      } catch {
+        setRiderPresence([]);
+      }
       setState("ready");
     } catch {
       setState("denied");
@@ -80,9 +90,20 @@ function OpsPage() {
     () =>
       snapshot?.rider_applications.filter(
         (row) =>
-          value(row, "status") === "approved" && value(row, "verification_status") === "verified",
+          value(row, "status") === "approved" &&
+          value(row, "verification_status") === "verified" &&
+          riderPresence.some(
+            (presence) =>
+              presence.rider_id === value(row, "applicant_id") &&
+              presence.availability_status === "online",
+          ),
       ) ?? [],
-    [snapshot],
+    [riderPresence, snapshot],
+  );
+
+  const riderPresenceById = useMemo(
+    () => new Map(riderPresence.map((presence) => [presence.rider_id, presence])),
+    [riderPresence],
   );
 
   async function review(kind: "partner" | "rider", id: string, status: string) {
@@ -167,6 +188,16 @@ function OpsPage() {
     }
   }
 
+  async function retryDishbeeOneHandoff(handoffId: string) {
+    try {
+      await retryOpsDishbeeOneHandoff(handoffId);
+      setMessage("Dishbee One handoff released with its original idempotency key.");
+      await load();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Handoff could not be released.");
+    }
+  }
+
   return (
     <LaunchShell>
       <LaunchHero
@@ -196,7 +227,7 @@ function OpsPage() {
               This route does not accept restaurant memberships. A service-role administrator must
               explicitly add an approved support, operations or admin identity.
             </p>
-            <a href="/">Return to marketplace</a>
+            <a href="/order">Return to marketplace</a>
           </section>
         </div>
       )}
@@ -220,8 +251,18 @@ function OpsPage() {
               <strong>{snapshot.delivery_jobs.length}</strong>
             </div>
             <div>
+              <small>RIDERS ONLINE</small>
+              <strong>
+                {riderPresence.filter((item) => item.availability_status === "online").length}
+              </strong>
+            </div>
+            <div>
               <small>SMS DEAD LETTER</small>
               <strong>{snapshot.notification_health.dead_letter}</strong>
+            </div>
+            <div>
+              <small>EPOS HANDOFF QUEUE</small>
+              <strong>{snapshot.dishbee_one_handoffs.counts.queued}</strong>
             </div>
             <button type="button" onClick={load}>
               <RefreshCw /> Refresh
@@ -326,6 +367,16 @@ function OpsPage() {
                           {value(row, "has_valid_licence") === "true" ? "yes" : "no"}
                         </em>
                         <em>Evidence: {value(row, "verification_status").replaceAll("_", " ")}</em>
+                        {value(row, "status") === "approved" && (
+                          <em
+                            className={`rider-presence ${riderPresenceById.get(value(row, "applicant_id"))?.availability_status ?? "offline"}`}
+                          >
+                            Dispatch:{" "}
+                            {riderPresenceById
+                              .get(value(row, "applicant_id"))
+                              ?.availability_status.replaceAll("_", " ") ?? "offline"}
+                          </em>
+                        )}
                       </span>
                       <b className={`case-status ${value(row, "status")}`}>
                         {value(row, "status")}
@@ -466,6 +517,99 @@ function OpsPage() {
               </article>
             </div>
           </section>
+          <section className="ops-section ops-health-section">
+            <div className="workspace-section-header">
+              <div>
+                <span className="section-kicker">DISHBEE ONE BRIDGE</span>
+                <h2>Signed EPOS/KDS handoffs</h2>
+              </div>
+              <ExternalLink />
+            </div>
+            <div className="ops-health-grid">
+              <article className={snapshot.dishbee_one_handoffs.counts.blocked ? "danger" : ""}>
+                <small>MAPPING BLOCKED</small>
+                <strong>{snapshot.dishbee_one_handoffs.counts.blocked}</strong>
+              </article>
+              <article>
+                <small>QUEUED / SENDING</small>
+                <strong>{snapshot.dishbee_one_handoffs.counts.queued}</strong>
+              </article>
+              <article>
+                <small>ACKNOWLEDGED</small>
+                <strong>{snapshot.dishbee_one_handoffs.counts.acknowledged}</strong>
+              </article>
+              <article className={snapshot.dishbee_one_handoffs.counts.dead_letter ? "danger" : ""}>
+                <small>NEEDS OPERATOR</small>
+                <strong>{snapshot.dishbee_one_handoffs.counts.dead_letter}</strong>
+              </article>
+            </div>
+            <div className="ops-list dishbee-handoff-list">
+              {snapshot.dishbee_one_handoffs.recent.length ? (
+                snapshot.dishbee_one_handoffs.recent.map((handoff) => (
+                  <article key={handoff.id}>
+                    <span>
+                      <strong>{handoff.reference}</strong>
+                      <small>{handoff.branch_name}</small>
+                      <em>
+                        Attempt {handoff.attempt_count}
+                        {handoff.last_http_status ? ` · HTTP ${handoff.last_http_status}` : ""}
+                        {handoff.provider_order_id ? ` · EPOS ${handoff.provider_order_id}` : ""}
+                      </em>
+                      {handoff.last_error && <em>{handoff.last_error}</em>}
+                    </span>
+                    <b className={`case-status ${handoff.status}`}>
+                      {handoff.status.replaceAll("_", " ")}
+                    </b>
+                    {snapshot.staff_role !== "support" &&
+                      ["blocked", "retrying", "dead_letter", "cancelled"].includes(
+                        handoff.status,
+                      ) && (
+                        <button
+                          type="button"
+                          onClick={() => void retryDishbeeOneHandoff(handoff.id)}
+                        >
+                          <RefreshCw /> Rebuild and retry
+                        </button>
+                      )}
+                  </article>
+                ))
+              ) : (
+                <p className="empty-copy">No marketplace orders have entered the bridge.</p>
+              )}
+            </div>
+          </section>
+          {snapshot.staff_role !== "support" && (
+            <section className="ops-section">
+              <div className="workspace-section-header">
+                <div>
+                  <span className="section-kicker">LIVE DISPATCH</span>
+                  <h2>Active delivery manifest</h2>
+                </div>
+                <Navigation />
+              </div>
+              <div className="ops-dispatch-board">
+                {snapshot.delivery_jobs.length ? (
+                  snapshot.delivery_jobs.map((row) => (
+                    <article key={value(row, "id")}>
+                      <span>
+                        <strong>{value(row, "reference")}</strong>
+                        <small>{value(row, "restaurant")}</small>
+                      </span>
+                      <b className={`case-status ${value(row, "status")}`}>
+                        {value(row, "status").replaceAll("_", " ")}
+                      </b>
+                      <span>
+                        <small>RIDER</small>
+                        <strong>{value(row, "rider_id") || "Awaiting assignment"}</strong>
+                      </span>
+                    </article>
+                  ))
+                ) : (
+                  <p className="empty-copy">No active deliveries.</p>
+                )}
+              </div>
+            </section>
+          )}
           {snapshot.staff_role !== "support" && (
             <section className="ops-section">
               <div className="workspace-section-header">

@@ -142,11 +142,15 @@ export async function listMarketplaceCatalog(city = "Lahore") {
   const supabase = getSupabaseClient();
   if (!supabase) throw new Error("Pilot backend is not configured.");
 
-  const { data, error } = await supabase.rpc("marketplace_catalog", { p_city: city });
+  const [catalogResult, ratingResult] = await Promise.all([
+    supabase.rpc("marketplace_catalog", { p_city: city }),
+    supabase.rpc("marketplace_review_summary", { p_city: city }),
+  ]);
+  const { data, error } = catalogResult;
   if (error) throw new Error("The live restaurant and menu catalog could not be loaded.");
   const catalog = (data ?? {}) as Record<string, unknown>;
 
-  return mapMarketplaceCatalog(
+  const mapped = mapMarketplaceCatalog(
     (Array.isArray(catalog.branches) ? catalog.branches : []) as MarketplaceBranchRow[],
     (Array.isArray(catalog.categories) ? catalog.categories : []) as MarketplaceCategoryRow[],
     (Array.isArray(catalog.items) ? catalog.items : []) as MarketplaceMenuRow[],
@@ -155,6 +159,42 @@ export async function listMarketplaceCatalog(city = "Lahore") {
       : []) as MarketplaceOptionGroupRow[],
     (Array.isArray(catalog.options) ? catalog.options : []) as MarketplaceOptionRow[],
   );
+  const ratings = new Map(
+    (
+      (ratingResult.data ?? []) as Array<{
+        branch_id: string;
+        rating: number;
+        review_count: number;
+      }>
+    ).map((row) => [row.branch_id, row]),
+  );
+  return {
+    ...mapped,
+    restaurants: mapped.restaurants.map((restaurant) => {
+      const summary = ratings.get(restaurant.id);
+      return summary
+        ? { ...restaurant, rating: Number(summary.rating), reviews: String(summary.review_count) }
+        : restaurant;
+    }),
+  };
+}
+
+export async function listCustomerFavouriteBranches(): Promise<string[]> {
+  const supabase = getSupabaseClient();
+  if (!supabase) return [];
+  const { data, error } = await supabase.rpc("customer_list_favourites");
+  if (error) throw new Error("Favourite restaurants could not be loaded.");
+  return (data ?? []).map((row: { branch_id: string }) => row.branch_id);
+}
+
+export async function setCustomerFavouriteBranch(branchId: string, favourite: boolean) {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error("Pilot backend is not configured.");
+  const { error } = await supabase.rpc("customer_set_favourite", {
+    p_branch_id: branchId,
+    p_favourite: favourite,
+  });
+  if (error) throw new Error("Your favourite could not be saved.");
 }
 
 export async function saveCustomerPilotAddress(input: {
@@ -185,6 +225,54 @@ export async function listCustomerOrders(): Promise<CustomerOrder[]> {
   const { data, error } = await supabase.rpc("customer_list_orders");
   if (error) throw new Error("Your live orders could not be loaded.");
   return mapCustomerOrders((data ?? []) as Parameters<typeof mapCustomerOrders>[0]);
+}
+
+export type CustomerReview = {
+  order_id: string;
+  rating: number;
+  comment: string | null;
+  moderation_status: "pending" | "published" | "hidden";
+  updated_at: string;
+};
+
+export async function listCustomerReviews(): Promise<CustomerReview[]> {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error("Pilot backend is not configured.");
+  const { data, error } = await supabase.rpc("customer_list_own_reviews");
+  if (error) throw new Error("Your reviews could not be loaded.");
+  return (data ?? []) as CustomerReview[];
+}
+
+export async function submitCustomerReview(input: {
+  orderId: string;
+  rating: number;
+  comment?: string;
+}) {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error("Pilot backend is not configured.");
+  const { error } = await supabase.rpc("customer_submit_review", {
+    p_order_id: input.orderId,
+    p_rating: input.rating,
+    p_comment: input.comment?.trim() || null,
+  });
+  if (error) throw new Error("Only a completed order can be rated.");
+}
+
+export async function repeatCustomerCodOrder(sourceOrderId: string): Promise<CreatedCodOrder> {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error("Pilot backend is not configured.");
+  const { data, error } = await supabase.rpc("customer_repeat_cod_order", {
+    p_source_order_id: sourceOrderId,
+    p_idempotency_key: newIdempotencyKey(),
+  });
+  if (error) {
+    throw new Error(
+      "This order cannot be repeated unchanged. A restaurant item, option, price or opening status has changed.",
+    );
+  }
+  const order = Array.isArray(data) ? data[0] : data;
+  if (!order) throw new Error("The repeated order was not returned by the server.");
+  return order as CreatedCodOrder;
 }
 
 export async function requestCustomerCancellation(orderId: string, reason: string) {
@@ -651,6 +739,13 @@ export type RiderWorkspaceSnapshot = {
     review_note: string | null;
     created_at: string;
   }>;
+  presence: {
+    availability_status: "offline" | "online" | "on_delivery";
+    last_location_at: string | null;
+    updated_at: string | null;
+  };
+  cash_balance_paisa: number;
+  completed_today: number;
   jobs: RiderJob[];
 };
 
@@ -732,6 +827,74 @@ export async function transitionRiderJob(input: {
   if (error) throw new Error("The delivery status could not be changed safely.");
 }
 
+export async function setRiderAvailability(online: boolean) {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error("Pilot backend is not configured.");
+  const { data, error } = await supabase.rpc("rider_set_availability", { p_online: online });
+  if (error) {
+    throw new Error(
+      online
+        ? "Availability could not be enabled. Check rider approval and verification."
+        : "Finish or resolve the active delivery before going offline.",
+    );
+  }
+  return data as RiderWorkspaceSnapshot["presence"];
+}
+
+export async function updateRiderLocation(input: {
+  latitude: number;
+  longitude: number;
+  accuracyMetres: number;
+}) {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error("Pilot backend is not configured.");
+  const { error } = await supabase.rpc("rider_update_location", {
+    p_latitude: input.latitude,
+    p_longitude: input.longitude,
+    p_accuracy_metres: input.accuracyMetres,
+  });
+  if (error) throw new Error("Live location could not be verified.");
+}
+
+export function subscribeToRiderJobs(riderId: string, onChange: () => void) {
+  const supabase = getSupabaseClient();
+  if (!supabase) return () => undefined;
+  const channel = supabase
+    .channel(`rider-jobs-${riderId}`)
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "delivery_jobs",
+        filter: `rider_id=eq.${riderId}`,
+      },
+      onChange,
+    )
+    .subscribe();
+  return () => {
+    void supabase.removeChannel(channel);
+  };
+}
+
+export type OpsRiderPresence = {
+  rider_id: string;
+  availability_status: "offline" | "online" | "on_delivery";
+  accuracy_metres: number | null;
+  last_location_at: string | null;
+  updated_at: string;
+};
+
+export async function listOpsRiderPresence(): Promise<OpsRiderPresence[]> {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error("Pilot backend is not configured.");
+  const { data, error } = await supabase
+    .from("rider_presence")
+    .select("rider_id,availability_status,accuracy_metres,last_location_at,updated_at");
+  if (error) throw new Error("Rider availability could not be loaded.");
+  return (data ?? []) as OpsRiderPresence[];
+}
+
 export type OpsLaunchSnapshot = {
   staff_role: "support" | "operations" | "admin";
   partner_applications: Array<Record<string, unknown>>;
@@ -742,18 +905,60 @@ export type OpsLaunchSnapshot = {
   verification_documents: Array<Record<string, unknown>>;
   cod_reconciliation: Array<Record<string, unknown>>;
   notification_health: { queued: number; sending: number; dead_letter: number };
+  dishbee_one_handoffs: {
+    counts: { blocked: number; queued: number; acknowledged: number; dead_letter: number };
+    recent: Array<{
+      id: string;
+      order_id: string;
+      reference: string;
+      branch_name: string;
+      status:
+        | "blocked"
+        | "pending"
+        | "sending"
+        | "retrying"
+        | "acknowledged"
+        | "dead_letter"
+        | "cancelled";
+      attempt_count: number;
+      last_http_status: number | null;
+      last_error: string | null;
+      provider_order_id: string | null;
+      created_at: string;
+      acknowledged_at: string | null;
+    }>;
+  };
   launch_checks: Array<Record<string, unknown>>;
 };
 
 export async function getOpsLaunchSnapshot(): Promise<OpsLaunchSnapshot> {
   const supabase = getSupabaseClient();
   if (!supabase) throw new Error("Pilot backend is not configured.");
-  const [launch, hardening] = await Promise.all([
+  const [launch, hardening, dishbeeOne] = await Promise.all([
     supabase.rpc("ops_launch_snapshot"),
     supabase.rpc("ops_phase4b_snapshot"),
+    supabase.rpc("ops_dishbee_one_handoff_snapshot"),
   ]);
-  if (launch.error || hardening.error) throw new Error("Operations access could not be verified.");
-  return { ...(launch.data as object), ...(hardening.data as object) } as OpsLaunchSnapshot;
+  if (launch.error || hardening.error || dishbeeOne.error)
+    throw new Error("Operations access could not be verified.");
+  return {
+    ...(launch.data as object),
+    ...(hardening.data as object),
+    dishbee_one_handoffs: dishbeeOne.data,
+  } as OpsLaunchSnapshot;
+}
+
+export async function retryOpsDishbeeOneHandoff(handoffId: string) {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error("Pilot backend is not configured.");
+  const { error } = await supabase.rpc("ops_retry_dishbee_one_handoff", {
+    p_handoff_id: handoffId,
+  });
+  if (error) {
+    throw new Error(
+      "The handoff could not be released. Check the branch and menu mappings before retrying.",
+    );
+  }
 }
 
 export async function getOpsRiderDocumentUrl(objectPath: string) {

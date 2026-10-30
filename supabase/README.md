@@ -54,3 +54,13 @@ Phase 4B adds private rider evidence, verified-rider dispatch enforcement, an ap
 9. Pass a launch check only with a traceable test result, ticket or approval in its evidence note. The seeded checks are blocked by default.
 
 Phase 4B deliberately does not seed staff, approve riders, mark release gates passed or select an SMS provider. Those are controlled deployment and operational decisions.
+
+Phase 5 adds private favourites, verified-order feedback and safe current-price repeat ordering. After applying `20260812103000_customer_retention.sql`:
+
+1. Prove customer A cannot list or change customer B's favourites or reviews.
+2. Prove an uncompleted order and another customer's order cannot be reviewed.
+3. Confirm rating-only feedback publishes immediately, while optional written copy remains pending until an authorised moderation workflow is added.
+4. Repeat a terminal order after changing an item price and prove the new server price is used; then close the branch or remove an option and prove the repeat is rejected.
+5. Confirm public rating summaries never expose customer identity or written review copy.
+
+The migration does not create fake reviews or bypass existing checkout controls. Deploy it after Phase 4B and before enabling the Phase 5 account UI.

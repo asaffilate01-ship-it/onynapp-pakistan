@@ -5,10 +5,10 @@ import { LaunchCta, LaunchHero, LaunchShell } from "../components/launch-shell";
 export const Route = createFileRoute("/help")({
   head: () => ({
     meta: [
-      { title: "Help Centre | Onyn Pakistan" },
+      { title: "Help Centre | Dishbee+ Pakistan" },
       {
         name: "description",
-        content: "Help with Onyn Pakistan orders, accounts, partners and rider applications.",
+        content: "Help with Dishbee+ Pakistan orders, accounts, partners and rider applications.",
       },
     ],
   }),
@@ -34,7 +34,7 @@ const faqs = [
   ],
   [
     "How do I become a partner?",
-    "Use the partner application page and verify a Pakistan mobile number. Applying does not activate a store; Onyn operations must review it.",
+    "Use the partner application page and verify a Pakistan mobile number. Applying does not activate a store; Dishbee+ operations must review it.",
   ],
   [
     "How do riders join?",

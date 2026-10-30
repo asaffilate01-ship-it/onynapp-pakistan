@@ -10,12 +10,14 @@ import {
   ChevronDown,
   CircleDollarSign,
   Clock3,
+  ExternalLink,
   Gauge,
   LayoutDashboard,
   ListChecks,
   LoaderCircle,
   LogOut,
   Menu,
+  MonitorSmartphone,
   PackageCheck,
   PauseCircle,
   Search,
@@ -67,14 +69,19 @@ import {
   type VendorMenuItem,
 } from "../lib/vendor-workspace";
 import { parseMenuCsv } from "../lib/launch";
+import {
+  dishbeeOneSurfaceUrl,
+  getDishbeeOneConnection,
+  type DishbeeOneConnection,
+} from "../lib/dishbee-one";
 
 export const Route = createFileRoute("/vendor")({
   head: () => ({
     meta: [
-      { title: "Restaurant workspace — Onyn Pakistan" },
+      { title: "Dishbee+ One — Restaurant workspace" },
       {
         name: "description",
-        content: "Onyn Pakistan restaurant orders, kitchen display and menu operations.",
+        content: "Dishbee+ Pakistan restaurant orders, kitchen display and menu operations.",
       },
       { name: "robots", content: "noindex, nofollow" },
     ],
@@ -82,7 +89,7 @@ export const Route = createFileRoute("/vendor")({
   component: VendorWorkspace,
 });
 
-type WorkspaceView = "orders" | "kds" | "menu" | "reports" | "settings";
+type WorkspaceView = "orders" | "kds" | "menu" | "counter" | "reports" | "settings";
 
 const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const defaultWeeklyHours: VendorDayHours[] = dayNames.map((_, weekday) => ({
@@ -199,6 +206,7 @@ const navItems: Array<{ id: WorkspaceView; label: string; icon: typeof LayoutDas
   { id: "orders", label: "Orders", icon: ListChecks },
   { id: "kds", label: "Kitchen", icon: ChefHat },
   { id: "menu", label: "Menu", icon: Menu },
+  { id: "counter", label: "Counter", icon: MonitorSmartphone },
   { id: "reports", label: "Reports", icon: BarChart3 },
   { id: "settings", label: "More", icon: Settings },
 ];
@@ -235,10 +243,11 @@ function VendorWorkspace() {
     "demo" | "loading" | "signed_out" | "unauthorised" | "ready" | "error"
   >(backendConnected ? "loading" : "demo");
   const [workspaceContext, setWorkspaceContext] = useState<VendorWorkspaceContext | null>(null);
+  const dishbeeOne = getDishbeeOneConnection();
   const canManageBranch = !workspaceContext || workspaceContext.role !== "kitchen";
   const visibleNavItems = canManageBranch
     ? navItems
-    : navItems.filter((item) => item.id !== "settings");
+    : navItems.filter((item) => !["counter", "settings"].includes(item.id));
 
   const loadLiveData = useCallback(async (context: VendorWorkspaceContext) => {
     const [orderRows, menuRows, schedule] = await Promise.all([
@@ -535,10 +544,10 @@ function VendorWorkspace() {
       </a>
 
       <aside className="vendor-sidebar" aria-label="Restaurant workspace navigation">
-        <a className="vendor-brand" href="/" aria-label="Back to Onyn Pakistan">
-          <span className="brand-mark">O</span>
+        <a className="vendor-brand" href="/" aria-label="Back to Dishbee Plus Pakistan">
+          <img className="brand-mark" src="/dishbee-plus-mark.svg" alt="" />
           <span>
-            Onyn <small>RESTAURANT</small>
+            Dishbee+ <small>ONE</small>
           </span>
         </a>
 
@@ -578,7 +587,7 @@ function VendorWorkspace() {
           </span>
           <p>No privileged credentials are stored in this browser.</p>
         </div>
-        <a className="back-marketplace" href="/">
+        <a className="back-marketplace" href="/order">
           <ArrowLeft size={17} /> Customer marketplace
         </a>
         {workspaceContext && (
@@ -591,7 +600,7 @@ function VendorWorkspace() {
       <main id="vendor-main" className="vendor-main">
         <header className="vendor-topbar">
           <div>
-            <span className="mobile-wordmark">Onyn Restaurant</span>
+            <span className="mobile-wordmark">Dishbee+ One</span>
             <p>{businessDate}</p>
             <h1>{visibleNavItems.find((item) => item.id === view)?.label}</h1>
           </div>
@@ -692,6 +701,7 @@ function VendorWorkspace() {
           />
         )}
         {view === "reports" && <VendorReports orders={orders} metrics={metrics} />}
+        {view === "counter" && <DishbeeOnePanel connection={dishbeeOne} />}
         {view === "settings" && (
           <OperationsSettings
             acceptingOrders={acceptingOrders}
@@ -780,11 +790,78 @@ function VendorWorkspace() {
   );
 }
 
+function DishbeeOnePanel({ connection }: { connection: DishbeeOneConnection }) {
+  const eposUrl = dishbeeOneSurfaceUrl(connection, "epos");
+  const kdsUrl = dishbeeOneSurfaceUrl(connection, "kds");
+  return (
+    <section className="dishbee-one-panel">
+      <header>
+        <span>
+          <MonitorSmartphone />
+        </span>
+        <div>
+          <small>DISHBEE ONE · AUTHORITATIVE RESTAURANT OPERATIONS</small>
+          <h2>Counter, KDS and payment controls</h2>
+          <p>
+            Dishbee+ supplies marketplace demand. Dishbee One remains the source of truth for EPOS,
+            paid-order release, kitchen lifecycle, till reconciliation and provider-verified
+            refunds.
+          </p>
+        </div>
+      </header>
+      <div className="dishbee-one-capabilities">
+        <article>
+          <strong>Counter / EPOS</strong>
+          <p>Cash, paired-reader and account orders with an auditable till shift.</p>
+          {eposUrl ? (
+            <a href={eposUrl} target="_blank" rel="noreferrer">
+              Open Dishbee Counter <ExternalLink />
+            </a>
+          ) : (
+            <span>Connection required</span>
+          )}
+        </article>
+        <article>
+          <strong>Production KDS</strong>
+          <p>One customer order card with brand and station readiness behind it.</p>
+          {kdsUrl ? (
+            <a href={kdsUrl} target="_blank" rel="noreferrer">
+              Open Dishbee KDS <ExternalLink />
+            </a>
+          ) : (
+            <span>Connection required</span>
+          )}
+        </article>
+        <article>
+          <strong>Safe boundary</strong>
+          <p>No access token, payment credential or customer record is placed in the link.</p>
+          <span>Server handoff remains launch-gated</span>
+        </article>
+      </div>
+      <div className={`dishbee-one-connection ${connection.configured ? "ready" : "blocked"}`}>
+        {connection.configured ? <CheckCircle2 /> : <AlertTriangle />}
+        <span>
+          <strong>
+            {connection.configured
+              ? "Dishbee One URL configured"
+              : "Dishbee One connection not configured"}
+          </strong>
+          <small>
+            {connection.configured
+              ? "Authentication and tenant membership are enforced again inside Dishbee One."
+              : connection.reason}
+          </small>
+        </span>
+      </div>
+    </section>
+  );
+}
+
 function VendorAccessLoading() {
   return (
     <main className="vendor-access-shell">
       <section className="vendor-access-card" aria-live="polite">
-        <span className="vendor-access-logo">O</span>
+        <img className="vendor-access-logo" src="/dishbee-plus-mark.svg" alt="" />
         <LoaderCircle className="access-spinner" />
         <h1>Checking restaurant access</h1>
         <p>Verifying your signed-in account and branch permissions.</p>
@@ -829,8 +906,8 @@ function VendorSignIn({ onVerified }: { onVerified: () => Promise<void> }) {
     <main className="vendor-access-shell">
       <section className="vendor-access-card">
         <a className="vendor-access-brand" href="/">
-          <span className="vendor-access-logo">O</span>
-          <span>Onyn Restaurant</span>
+          <img className="vendor-access-logo" src="/dishbee-plus-mark.svg" alt="" />
+          <span>Dishbee+ One</span>
         </a>
         <span className="access-kicker">SECURE PARTNER ACCESS</span>
         <h1>Sign in to your restaurant</h1>
@@ -916,7 +993,7 @@ function VendorAccessDenied({
         <button type="button" className="vendor-access-secondary" onClick={resetSession}>
           Sign out and use another number
         </button>
-        <a href="/">Return to customer marketplace</a>
+        <a href="/order">Return to customer marketplace</a>
       </section>
     </main>
   );
@@ -949,12 +1026,7 @@ function OrdersBoard({
   return (
     <>
       <section className="metric-grid" aria-label="Live order summary">
-        <Metric
-          icon={BellRing}
-          label="New orders"
-          value={String(metrics.newOrders)}
-          tone="purple"
-        />
+        <Metric icon={BellRing} label="New orders" value={String(metrics.newOrders)} tone="brand" />
         <Metric icon={ChefHat} label="In kitchen" value={String(metrics.cooking)} tone="amber" />
         <Metric icon={PackageCheck} label="Ready" value={String(metrics.ready)} tone="green" />
         <Metric
@@ -1420,7 +1492,7 @@ function VendorReports({
           icon={CircleDollarSign}
           label="Order value"
           value={formatPkr(orderValue)}
-          tone="purple"
+          tone="brand"
         />
         <Metric
           icon={CheckCircle2}

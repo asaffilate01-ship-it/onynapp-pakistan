@@ -11,22 +11,28 @@ import {
   X,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
+import { DishbeePlusBrand } from "./dishbee-plus-brand";
 
-export function LaunchShell({ children }: { children: ReactNode }) {
+export function LaunchShell({
+  children,
+  variant = "standard",
+}: {
+  children: ReactNode;
+  variant?: "standard" | "marketing";
+}) {
   const [menuOpen, setMenuOpen] = useState(false);
   return (
-    <div className="launch-shell">
+    <div className={`launch-shell ${variant === "marketing" ? "marketing" : ""}`}>
       <a className="skip-link" href="#launch-main">
         Skip to content
       </a>
       <header className="launch-header">
-        <a className="launch-brand" href="/" aria-label="Onyn Pakistan home">
-          <span className="brand-mark">O</span>
-          <span>onyn</span>
-          <small>PK</small>
+        <a className="launch-brand" href="/" aria-label="Dishbee Plus Pakistan home">
+          <DishbeePlusBrand context="PAKISTAN" inverse={variant === "marketing"} />
         </a>
         <nav className={menuOpen ? "open" : ""} aria-label="Launch navigation">
-          <a href="/">Order food</a>
+          <a href="/order">Order food</a>
+          <a href="/for-business">For business</a>
           <a href="/partners">Partners</a>
           <a href="/rider">Riders</a>
           <a href="/help">Help</a>
@@ -49,15 +55,13 @@ export function LaunchShell({ children }: { children: ReactNode }) {
         <div className="launch-footer-grid">
           <div>
             <a className="launch-brand footer" href="/">
-              <span className="brand-mark">O</span>
-              <span>onyn</span>
-              <small>PK</small>
+              <DishbeePlusBrand context="PAKISTAN" inverse />
             </a>
             <p>Pakistan-only local food ordering, beginning with a controlled Lahore COD pilot.</p>
           </div>
           <div>
             <strong>Customers</strong>
-            <a href="/">Browse food</a>
+            <a href="/order">Browse food</a>
             <a href="/account">Account and orders</a>
             <a href="/support">Contact support</a>
             <a href="/safety">Safety</a>
@@ -65,6 +69,7 @@ export function LaunchShell({ children }: { children: ReactNode }) {
           <div>
             <strong>Partners</strong>
             <a href="/partners">Restaurant and home-chef applications</a>
+            <a href="/for-business">Business benefits and savings</a>
             <a href="/rider">Rider applications</a>
             <a href="/vendor">Restaurant workspace</a>
           </div>
@@ -73,16 +78,16 @@ export function LaunchShell({ children }: { children: ReactNode }) {
             <a href="/terms">Terms</a>
             <a href="/privacy">Privacy</a>
             <a href="/refunds">Cancellation and refunds</a>
-            <a href="/about">About Onyn</a>
+            <a href="/about">About Dishbee+</a>
           </div>
         </div>
         <div className="launch-footer-bottom">
-          <span>© 2026 Onyn Pakistan. Controlled pilot candidate.</span>
+          <span>© 2026 Dishbee+ Pakistan. Controlled pilot candidate.</span>
           <span>English · Urdu localisation in validation</span>
         </div>
       </footer>
       <nav className="launch-mobile-nav" aria-label="Mobile launch navigation">
-        <a href="/">
+        <a href="/order">
           <Home /> <span>Food</span>
         </a>
         <a href="/partners">

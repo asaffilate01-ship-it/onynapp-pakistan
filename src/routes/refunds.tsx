@@ -3,7 +3,7 @@ import { ReceiptText } from "lucide-react";
 import { InfoPage } from "../components/info-page";
 
 export const Route = createFileRoute("/refunds")({
-  head: () => ({ meta: [{ title: "Cancellations and Refunds | Onyn Pakistan" }] }),
+  head: () => ({ meta: [{ title: "Cancellations and Refunds | Dishbee+ Pakistan" }] }),
   component: RefundsPage,
 });
 function RefundsPage() {

@@ -2,9 +2,14 @@ import { createFileRoute } from "@tanstack/react-router";
 import {
   Bike,
   CheckCircle2,
+  CircleDollarSign,
+  Clock3,
+  ExternalLink,
   FileCheck2,
   MapPin,
   Navigation,
+  Power,
+  Radio,
   Send,
   ShieldCheck,
   Store,
@@ -13,28 +18,42 @@ import {
 import { useCallback, useEffect, useState } from "react";
 import { LaunchHero, LaunchShell, StatusMessage } from "../components/launch-shell";
 import { PilotAuth } from "../components/pilot-auth";
+import { useRiderLocation } from "../hooks/use-rider-location";
 import { nextRiderActions, requiredRiderEvidence } from "../lib/launch";
 import { normalizePakistanPhone } from "../lib/pilot";
 import {
   getCurrentCustomer,
   getRiderWorkspaceSnapshot,
   isPilotBackendConfigured,
+  setRiderAvailability,
   submitRiderApplication,
+  subscribeToRiderJobs,
   transitionRiderJob,
   uploadRiderVerificationDocument,
   type RiderDocumentKind,
   type RiderWorkspaceSnapshot,
 } from "../lib/supabase";
 
+type RiderView = "jobs" | "active" | "cash" | "profile";
+
+function directionsUrl(address: string | null) {
+  return address
+    ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}`
+    : "";
+}
+
 export const Route = createFileRoute("/rider")({
-  head: () => ({ meta: [{ title: "Ride with Onyn Pakistan" }] }),
+  head: () => ({ meta: [{ title: "Ride with Dishbee+ Pakistan" }] }),
   component: RiderPage,
 });
 
 function RiderPage() {
   const configured = isPilotBackendConfigured();
   const [signedIn, setSignedIn] = useState(false);
+  const [riderId, setRiderId] = useState<string | null>(null);
   const [workspace, setWorkspace] = useState<RiderWorkspaceSnapshot | null>(null);
+  const [view, setView] = useState<RiderView>("jobs");
+  const [availabilityBusy, setAvailabilityBusy] = useState(false);
   const [form, setForm] = useState({
     fullName: "",
     phone: "",
@@ -51,6 +70,7 @@ function RiderPage() {
     if (!configured) return;
     const user = await getCurrentCustomer();
     setSignedIn(Boolean(user));
+    setRiderId(user?.id ?? null);
     if (user) {
       try {
         setWorkspace(await getRiderWorkspaceSnapshot());
@@ -62,6 +82,43 @@ function RiderPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!riderId) return;
+    return subscribeToRiderJobs(riderId, () => void load());
+  }, [load, riderId]);
+
+  const online = ["online", "on_delivery"].includes(
+    workspace?.presence?.availability_status ?? "offline",
+  );
+  const presence = workspace?.presence ?? {
+    availability_status: "offline" as const,
+    last_location_at: null,
+    updated_at: null,
+  };
+  const cashBalancePaisa = Number(workspace?.cash_balance_paisa ?? 0);
+  const completedToday = Number(workspace?.completed_today ?? 0);
+  const approved = workspace?.application?.status === "approved";
+  const locationState = useRiderLocation(Boolean(approved && online));
+  const activeJobs =
+    workspace?.jobs.filter((job) =>
+      ["offered", "accepted", "at_pickup", "picked_up"].includes(job.status),
+    ) ?? [];
+  const visibleJobs = view === "active" ? activeJobs : (workspace?.jobs ?? []);
+
+  async function toggleAvailability() {
+    if (availabilityBusy || !approved) return;
+    setAvailabilityBusy(true);
+    try {
+      await setRiderAvailability(!online);
+      setMessage(!online ? "You are online and available for dispatch." : "You are offline.");
+      await load();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Availability could not be changed.");
+    } finally {
+      setAvailabilityBusy(false);
+    }
+  }
 
   async function apply(event: React.FormEvent) {
     event.preventDefault();
@@ -124,7 +181,7 @@ function RiderPage() {
   return (
     <LaunchShell>
       <LaunchHero
-        eyebrow="RIDE WITH ONYN"
+        eyebrow="RIDE WITH DISHBEE+"
         title="Clear jobs, safer handovers and accountable COD."
         description="The controlled Lahore rider workflow separates screening, assignment, pickup, delivery proof and cash reconciliation."
       />
@@ -228,8 +285,8 @@ function RiderPage() {
                   onChange={(event) => setForm({ ...form, hasValidLicence: event.target.checked })}
                 />
                 <span>
-                  I confirm I hold the licence required for my chosen vehicle. Onyn will verify this
-                  before approval.
+                  I confirm I hold the licence required for my chosen vehicle. Dishbee+ will verify
+                  this before approval.
                 </span>
               </label>
               <button type="submit">
@@ -266,7 +323,7 @@ function RiderPage() {
                       <h2>Upload required rider evidence</h2>
                       <p>
                         JPEG, PNG or PDF only, up to 5 MB. Files are private and available only to
-                        you and authorised Onyn verification staff.
+                        you and authorised Dishbee+ verification staff.
                       </p>
                     </div>
                   </header>
@@ -303,93 +360,224 @@ function RiderPage() {
                 </section>
               )}
               {workspace.application.status === "approved" && (
-                <section className="rider-jobs">
-                  <div className="section-heading launch-heading">
-                    <div>
-                      <span className="kicker">ASSIGNED JOBS</span>
-                      <h2>Your delivery queue</h2>
-                    </div>
-                  </div>
-                  {workspace.jobs.length ? (
-                    workspace.jobs.map((job) => (
-                      <article key={job.id}>
-                        <header>
-                          <span>
-                            <strong>{job.reference}</strong>
-                            <small>{job.restaurant}</small>
+                <>
+                  <section className="rider-live-toolbar" aria-label="Rider live status">
+                    <button
+                      type="button"
+                      className={online ? "online" : "offline"}
+                      onClick={() => void toggleAvailability()}
+                      disabled={availabilityBusy || presence.availability_status === "on_delivery"}
+                    >
+                      <Power />
+                      <span>
+                        <small>DISPATCH STATUS</small>
+                        <strong>
+                          {presence.availability_status === "on_delivery"
+                            ? "On delivery"
+                            : online
+                              ? "Online"
+                              : "Go online"}
+                        </strong>
+                      </span>
+                    </button>
+                    <article>
+                      <CircleDollarSign />
+                      <span>
+                        <small>COD TO HAND OVER</small>
+                        <strong>Rs. {(cashBalancePaisa / 100).toLocaleString("en-PK")}</strong>
+                      </span>
+                    </article>
+                    <article>
+                      <CheckCircle2 />
+                      <span>
+                        <small>DELIVERED TODAY</small>
+                        <strong>{completedToday}</strong>
+                      </span>
+                    </article>
+                    <article className={`location-${locationState}`}>
+                      <Radio />
+                      <span>
+                        <small>LIVE LOCATION</small>
+                        <strong>{locationState.replace("requesting", "Starting")}</strong>
+                      </span>
+                    </article>
+                  </section>
+
+                  <nav className="rider-workspace-nav" aria-label="Rider workspace">
+                    <button
+                      className={view === "jobs" ? "active" : ""}
+                      onClick={() => setView("jobs")}
+                      type="button"
+                    >
+                      <Bike /> Jobs
+                    </button>
+                    <button
+                      className={view === "active" ? "active" : ""}
+                      onClick={() => setView("active")}
+                      type="button"
+                    >
+                      <Navigation /> Active {activeJobs.length > 0 && <b>{activeJobs.length}</b>}
+                    </button>
+                    <button
+                      className={view === "cash" ? "active" : ""}
+                      onClick={() => setView("cash")}
+                      type="button"
+                    >
+                      <WalletCards /> Cash
+                    </button>
+                    <button
+                      className={view === "profile" ? "active" : ""}
+                      onClick={() => setView("profile")}
+                      type="button"
+                    >
+                      <ShieldCheck /> Profile
+                    </button>
+                  </nav>
+
+                  {(view === "jobs" || view === "active") && (
+                    <section className="rider-jobs">
+                      <div className="section-heading launch-heading">
+                        <div>
+                          <span className="kicker">
+                            {view === "active" ? "ACTIVE DELIVERY" : "ASSIGNED JOBS"}
                           </span>
-                          <b className={`case-status ${job.status}`}>
-                            {job.status.replace("_", " ")}
-                          </b>
-                        </header>
-                        <div className="rider-route">
-                          <span>
-                            <Store />
-                            <small>Pickup</small>
-                            <strong>{job.pickup_address}</strong>
-                          </span>
-                          <i />
-                          <span>
-                            <MapPin />
-                            <small>Deliver</small>
-                            <strong>{job.delivery_address}</strong>
-                            <em>{job.landmark}</em>
-                          </span>
+                          <h2>{view === "active" ? "Current handover" : "Your delivery queue"}</h2>
                         </div>
-                        <div className="rider-cod">
-                          <WalletCards />
-                          <span>
-                            <small>Collect exact COD</small>
-                            <strong>
-                              Rs. {(job.cash_to_collect_paisa / 100).toLocaleString("en-PK")}
-                            </strong>
-                          </span>
-                          {job.status === "delivered" && (
-                            <b className={`cod-state ${job.cod_status}`}>{job.cod_status}</b>
-                          )}
-                        </div>
-                        {job.status === "picked_up" && (
-                          <div className="delivery-proof-fields">
-                            <label>
-                              <span>Handover proof or problem note</span>
-                              <textarea
-                                value={proof}
-                                onChange={(event) => setProof(event.target.value)}
-                                rows={3}
-                              />
-                            </label>
-                            <label>
-                              <span>Cash collected (Rs.)</span>
-                              <input
-                                value={cash}
-                                onChange={(event) => setCash(event.target.value)}
-                                inputMode="decimal"
-                                placeholder={(job.cash_to_collect_paisa / 100).toString()}
-                              />
-                            </label>
-                          </div>
-                        )}
-                        <div className="rider-job-actions">
-                          {nextRiderActions(job.status).map((action) => (
-                            <button
-                              type="button"
-                              key={action.next}
-                              className={action.next === "failed" ? "danger" : ""}
-                              onClick={() => void transition(job.id, job.status, action.next)}
-                            >
-                              {action.label}
-                            </button>
-                          ))}
-                        </div>
-                      </article>
-                    ))
-                  ) : (
-                    <p className="empty-copy">
-                      No delivery is currently assigned. Stay available only during your agreed
-                      pilot shift.
-                    </p>
+                      </div>
+                      {visibleJobs.length ? (
+                        visibleJobs.map((job) => (
+                          <article key={job.id}>
+                            <header>
+                              <span>
+                                <strong>{job.reference}</strong>
+                                <small>{job.restaurant}</small>
+                              </span>
+                              <b className={`case-status ${job.status}`}>
+                                {job.status.replace("_", " ")}
+                              </b>
+                            </header>
+                            <div className="rider-route">
+                              <span>
+                                <Store />
+                                <small>Pickup</small>
+                                <strong>{job.pickup_address}</strong>
+                                <a
+                                  href={directionsUrl(job.pickup_address)}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  Directions <ExternalLink />
+                                </a>
+                              </span>
+                              <i />
+                              <span>
+                                <MapPin />
+                                <small>Deliver</small>
+                                <strong>{job.delivery_address}</strong>
+                                <em>{job.landmark}</em>
+                                {job.delivery_address && (
+                                  <a
+                                    href={directionsUrl(job.delivery_address)}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                  >
+                                    Directions <ExternalLink />
+                                  </a>
+                                )}
+                              </span>
+                            </div>
+                            <div className="rider-cod">
+                              <WalletCards />
+                              <span>
+                                <small>Collect exact COD</small>
+                                <strong>
+                                  Rs. {(job.cash_to_collect_paisa / 100).toLocaleString("en-PK")}
+                                </strong>
+                              </span>
+                              {job.status === "delivered" && (
+                                <b className={`cod-state ${job.cod_status}`}>{job.cod_status}</b>
+                              )}
+                            </div>
+                            {job.status === "picked_up" && (
+                              <div className="delivery-proof-fields">
+                                <label>
+                                  <span>Handover proof or problem note</span>
+                                  <textarea
+                                    value={proof}
+                                    onChange={(event) => setProof(event.target.value)}
+                                    rows={3}
+                                  />
+                                </label>
+                                <label>
+                                  <span>Cash collected (Rs.)</span>
+                                  <input
+                                    value={cash}
+                                    onChange={(event) => setCash(event.target.value)}
+                                    inputMode="decimal"
+                                    placeholder={(job.cash_to_collect_paisa / 100).toString()}
+                                  />
+                                </label>
+                              </div>
+                            )}
+                            <div className="rider-job-actions">
+                              {nextRiderActions(job.status).map((action) => (
+                                <button
+                                  type="button"
+                                  key={action.next}
+                                  className={action.next === "failed" ? "danger" : ""}
+                                  onClick={() => void transition(job.id, job.status, action.next)}
+                                >
+                                  {action.label}
+                                </button>
+                              ))}
+                            </div>
+                          </article>
+                        ))
+                      ) : (
+                        <p className="empty-copy">
+                          {view === "active"
+                            ? "No active delivery. Accepted jobs will appear here immediately."
+                            : "No delivery is currently assigned. Go online only during your agreed pilot shift."}
+                        </p>
+                      )}
+                    </section>
                   )}
-                </section>
+
+                  {view === "cash" && (
+                    <section className="rider-control-panel">
+                      <WalletCards />
+                      <span className="kicker">COD CONTROL</span>
+                      <h2>Rs. {(cashBalancePaisa / 100).toLocaleString("en-PK")} to hand over</h2>
+                      <p>
+                        This is an auditable liability balance, not earnings. Operations must count
+                        and reconcile the exact amount before it clears.
+                      </p>
+                      <a href="/support">Report a cash discrepancy</a>
+                    </section>
+                  )}
+
+                  {view === "profile" && (
+                    <section className="rider-control-panel">
+                      <ShieldCheck />
+                      <span className="kicker">VERIFIED RIDER</span>
+                      <h2>{workspace.application.full_name}</h2>
+                      <p>
+                        {workspace.application.vehicle_type} · {workspace.application.area} ·
+                        evidence {workspace.application.verification_status.replaceAll("_", " ")}
+                      </p>
+                      <p>
+                        Precise location is shared only while online and is available only to
+                        authorised dispatch operations for the controlled pilot.
+                      </p>
+                      <small>
+                        <Clock3 /> Last location:{" "}
+                        {presence.last_location_at
+                          ? new Date(presence.last_location_at).toLocaleString("en-PK")
+                          : "Not shared"}
+                      </small>
+                    </section>
+                  )}
+                </>
               )}
             </>
           )}

@@ -1,5 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Bell, ClipboardList, LogOut, MapPin, Save, UserRound } from "lucide-react";
+import {
+  Bell,
+  ClipboardList,
+  LogOut,
+  MapPin,
+  RefreshCw,
+  Save,
+  Star,
+  UserRound,
+} from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { LaunchHero, LaunchShell, StatusMessage } from "../components/launch-shell";
 import { PilotAuth } from "../components/pilot-auth";
@@ -9,16 +18,20 @@ import {
   isPilotBackendConfigured,
   listCustomerNotifications,
   listCustomerOrders,
+  listCustomerReviews,
+  repeatCustomerCodOrder,
   saveCustomerPilotAddress,
   signOutCustomer,
+  submitCustomerReview,
   updateCustomerProfile,
   type CustomerNotification,
   type CustomerProfileSnapshot,
+  type CustomerReview,
 } from "../lib/supabase";
 import type { CustomerOrder } from "../lib/customer-workspace";
 
 export const Route = createFileRoute("/account")({
-  head: () => ({ meta: [{ title: "My Account | Onyn Pakistan" }] }),
+  head: () => ({ meta: [{ title: "My Account | Dishbee+ Pakistan" }] }),
   component: AccountPage,
 });
 
@@ -30,8 +43,13 @@ function AccountPage() {
   const [profile, setProfile] = useState<CustomerProfileSnapshot | null>(null);
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
   const [notifications, setNotifications] = useState<CustomerNotification[]>([]);
+  const [reviews, setReviews] = useState<CustomerReview[]>([]);
   const [displayName, setDisplayName] = useState("");
   const [message, setMessage] = useState("");
+  const [busyOrderId, setBusyOrderId] = useState<string | null>(null);
+  const [reviewDrafts, setReviewDrafts] = useState<
+    Record<string, { rating: number; comment: string }>
+  >({});
   const [address, setAddress] = useState({
     label: "Gulberg III, Lahore",
     addressLine: "",
@@ -50,15 +68,17 @@ function AccountPage() {
       return;
     }
     try {
-      const [profileData, orderData, notificationData] = await Promise.all([
+      const [profileData, orderData, notificationData, reviewData] = await Promise.all([
         getCustomerProfileSnapshot(),
         listCustomerOrders(),
         listCustomerNotifications(),
+        listCustomerReviews(),
       ]);
       setProfile(profileData);
       setDisplayName(profileData.profile?.display_name ?? "");
       setOrders(orderData);
       setNotifications(notificationData);
+      setReviews(reviewData);
       setState("ready");
     } catch {
       setState("error");
@@ -101,7 +121,39 @@ function AccountPage() {
     setProfile(null);
     setOrders([]);
     setNotifications([]);
+    setReviews([]);
     setState("signed_out");
+  }
+
+  async function repeatOrder(orderId: string) {
+    setBusyOrderId(orderId);
+    try {
+      const repeated = await repeatCustomerCodOrder(orderId);
+      setMessage(`Order ${repeated.reference} was placed using current prices and availability.`);
+      await loadAccount();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "The order could not be repeated.");
+    } finally {
+      setBusyOrderId(null);
+    }
+  }
+
+  async function saveReview(orderId: string) {
+    const draft = reviewDrafts[orderId] ?? { rating: 5, comment: "" };
+    setBusyOrderId(orderId);
+    try {
+      await submitCustomerReview({ orderId, rating: draft.rating, comment: draft.comment });
+      setMessage(
+        draft.comment.trim()
+          ? "Rating saved. Your written review is waiting for moderation."
+          : "Restaurant rating saved.",
+      );
+      await loadAccount();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "The review could not be saved.");
+    } finally {
+      setBusyOrderId(null);
+    }
   }
 
   return (
@@ -129,7 +181,7 @@ function AccountPage() {
       )}
       {state === "signed_out" && configured && (
         <div className="launch-narrow">
-          <PilotAuth title="Sign in to your Onyn account" onVerified={loadAccount} />
+          <PilotAuth title="Sign in to your Dishbee+ account" onVerified={loadAccount} />
         </div>
       )}
       {state === "ready" && profile && (
@@ -138,7 +190,7 @@ function AccountPage() {
             <span>
               <UserRound />
             </span>
-            <h2>{profile.profile?.display_name || "Onyn customer"}</h2>
+            <h2>{profile.profile?.display_name || "Dishbee+ customer"}</h2>
             <p>{profile.profile?.phone_e164}</p>
             <div>
               <b>{orders.length}</b>
@@ -252,16 +304,89 @@ function AccountPage() {
               </header>
               <div className="account-order-list">
                 {orders.length ? (
-                  orders.map((order) => (
-                    <article key={order.id}>
-                      <span>
-                        <strong>{order.reference}</strong>
-                        <small>{order.branchName}</small>
-                      </span>
-                      <b>{order.status.replaceAll("_", " ")}</b>
-                      <span>Rs. {order.total.toLocaleString("en-PK")}</span>
-                    </article>
-                  ))
+                  orders.map((order) => {
+                    const existingReview = reviews.find((review) => review.order_id === order.id);
+                    const draft = reviewDrafts[order.id] ?? {
+                      rating: existingReview?.rating ?? 5,
+                      comment: existingReview?.comment ?? "",
+                    };
+                    const completed = ["delivered", "collected"].includes(order.status);
+                    const repeatable = [
+                      "delivered",
+                      "collected",
+                      "cancelled",
+                      "rejected",
+                      "delivery_failed",
+                    ].includes(order.status);
+                    return (
+                      <article key={order.id} className="account-order-card">
+                        <span>
+                          <strong>{order.reference}</strong>
+                          <small>{order.branchName}</small>
+                        </span>
+                        <b>{order.status.replaceAll("_", " ")}</b>
+                        <span>Rs. {order.total.toLocaleString("en-PK")}</span>
+                        {(repeatable || completed) && (
+                          <div className="account-order-actions">
+                            {repeatable && (
+                              <button
+                                type="button"
+                                disabled={busyOrderId === order.id}
+                                onClick={() => void repeatOrder(order.id)}
+                              >
+                                <RefreshCw /> Repeat with current prices
+                              </button>
+                            )}
+                            {completed && (
+                              <div className="account-review-editor">
+                                <span>Rate this order</span>
+                                <div className="review-stars" aria-label="Order rating">
+                                  {[1, 2, 3, 4, 5].map((rating) => (
+                                    <button
+                                      type="button"
+                                      key={rating}
+                                      aria-label={`${rating} star${rating === 1 ? "" : "s"}`}
+                                      className={rating <= draft.rating ? "active" : ""}
+                                      onClick={() =>
+                                        setReviewDrafts({
+                                          ...reviewDrafts,
+                                          [order.id]: { ...draft, rating },
+                                        })
+                                      }
+                                    >
+                                      <Star />
+                                    </button>
+                                  ))}
+                                </div>
+                                <textarea
+                                  rows={2}
+                                  maxLength={500}
+                                  value={draft.comment}
+                                  onChange={(event) =>
+                                    setReviewDrafts({
+                                      ...reviewDrafts,
+                                      [order.id]: { ...draft, comment: event.target.value },
+                                    })
+                                  }
+                                  placeholder="Optional review (moderated before publication)"
+                                />
+                                <button
+                                  type="button"
+                                  disabled={busyOrderId === order.id}
+                                  onClick={() => void saveReview(order.id)}
+                                >
+                                  <Star /> {existingReview ? "Update rating" : "Save rating"}
+                                </button>
+                                {existingReview && (
+                                  <small>Review status: {existingReview.moderation_status}</small>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </article>
+                    );
+                  })
                 ) : (
                   <p>No live orders yet. Your first server-confirmed order will appear here.</p>
                 )}

@@ -20,7 +20,7 @@ import {
 export const Route = createFileRoute("/partners")({
   head: () => ({
     meta: [
-      { title: "Partner with Onyn Pakistan" },
+      { title: "Partner with Dishbee+ Pakistan" },
       {
         name: "description",
         content: "Apply as a Pakistan restaurant, home chef, sales agent or supplier.",
@@ -109,7 +109,7 @@ function PartnersPage() {
         email: form.email,
         details: form.details,
       });
-      setMessage("Application submitted. Onyn operations must review it before activation.");
+      setMessage("Application submitted. Dishbee+ operations must review it before activation.");
       await load();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Application could not be submitted.");
@@ -119,7 +119,7 @@ function PartnersPage() {
   return (
     <LaunchShell>
       <LaunchHero
-        eyebrow="PARTNER WITH ONYN"
+        eyebrow="PARTNER WITH DISHBEE+"
         title="Grow without losing a large cut of every order."
         description="A Pakistan-first partner model with predictable subscription pricing, clear delivery/payment charges and restaurant-owned operating tools."
         actions={
@@ -138,8 +138,8 @@ function PartnersPage() {
           <BadgeCheck />
           <h2>Predictable model</h2>
           <p>
-            No Onyn percentage sales commission. Final subscription, payment and delivery charges
-            are disclosed before agreement.
+            No Dishbee+ percentage sales commission. Final subscription, payment and delivery
+            charges are disclosed before agreement.
           </p>
         </article>
         <article>

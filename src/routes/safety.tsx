@@ -3,7 +3,7 @@ import { ShieldAlert } from "lucide-react";
 import { InfoPage } from "../components/info-page";
 
 export const Route = createFileRoute("/safety")({
-  head: () => ({ meta: [{ title: "Safety | Onyn Pakistan" }] }),
+  head: () => ({ meta: [{ title: "Safety | Dishbee+ Pakistan" }] }),
   component: SafetyPage,
 });
 function SafetyPage() {
@@ -44,7 +44,7 @@ function SafetyPage() {
         {
           title: "Urgent situations",
           paragraphs: [
-            "Onyn support is not an emergency service. Contact the appropriate Pakistan emergency service where there is immediate danger, then preserve relevant order details and report the incident through the safety category.",
+            "Dishbee+ support is not an emergency service. Contact the appropriate Pakistan emergency service where there is immediate danger, then preserve relevant order details and report the incident through the safety category.",
           ],
         },
       ]}
