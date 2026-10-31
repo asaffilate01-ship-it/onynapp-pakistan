@@ -9,7 +9,8 @@ import {
   Star,
   UserRound,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ActionButton } from "../components/portfolio-ui";
 import { LaunchHero, LaunchShell, StatusMessage } from "../components/launch-shell";
 import { PilotAuth } from "../components/pilot-auth";
 import {
@@ -47,6 +48,8 @@ function AccountPage() {
   const [displayName, setDisplayName] = useState("");
   const [message, setMessage] = useState("");
   const [busyOrderId, setBusyOrderId] = useState<string | null>(null);
+  const [busyAction, setBusyAction] = useState<"profile" | "address" | null>(null);
+  const mutationLock = useRef(false);
   const [reviewDrafts, setReviewDrafts] = useState<
     Record<string, { rating: number; comment: string }>
   >({});
@@ -90,16 +93,27 @@ function AccountPage() {
   }, [loadAccount]);
 
   async function saveProfile() {
+    if (mutationLock.current) return;
+    mutationLock.current = true;
+    setBusyAction("profile");
+    setMessage("");
     try {
       await updateCustomerProfile(displayName);
       setMessage("Your account name has been saved.");
       await loadAccount();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Account could not be saved.");
+    } finally {
+      mutationLock.current = false;
+      setBusyAction(null);
     }
   }
 
   async function addAddress() {
+    if (mutationLock.current) return;
+    mutationLock.current = true;
+    setBusyAction("address");
+    setMessage("");
     try {
       await saveCustomerPilotAddress({
         label: address.label,
@@ -113,6 +127,9 @@ function AccountPage() {
       await loadAccount();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Address could not be saved.");
+    } finally {
+      mutationLock.current = false;
+      setBusyAction(null);
     }
   }
 
@@ -226,9 +243,15 @@ function AccountPage() {
                   maxLength={100}
                 />
               </label>
-              <button type="button" onClick={saveProfile}>
-                <Save /> Save details
-              </button>
+              <ActionButton
+                type="button"
+                onClick={() => void saveProfile()}
+                pending={busyAction === "profile"}
+                pendingLabel="Saving details…"
+                disabled={busyAction !== null}
+              >
+                <Save aria-hidden="true" /> Save details
+              </ActionButton>
             </section>
             <section className="account-panel">
               <header>
@@ -290,9 +313,15 @@ function AccountPage() {
                   />
                 </label>
               </div>
-              <button type="button" onClick={addAddress}>
-                <MapPin /> Verify and add address
-              </button>
+              <ActionButton
+                type="button"
+                onClick={() => void addAddress()}
+                pending={busyAction === "address"}
+                pendingLabel="Verifying address…"
+                disabled={busyAction !== null || !address.addressLine.trim()}
+              >
+                <MapPin aria-hidden="true" /> Verify and add address
+              </ActionButton>
             </section>
             <section className="account-panel">
               <header>
