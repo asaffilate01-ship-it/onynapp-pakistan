@@ -37,4 +37,9 @@ export default tseslint.config(
     },
   },
   eslintPluginPrettier,
+  // Portable shared UI retains upstream formatting. Keep TypeScript and hook rules active.
+  {
+    files: ["src/components/portfolio-ui/**/*.{ts,tsx}"],
+    rules: { "prettier/prettier": "off" },
+  },
 );
